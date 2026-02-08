@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.26.0",
-    "grpr-core": "workspace:*"
+    "grpr-core": "github:tillkolter/grpr-mcp#path:packages/grpr-core"
   },
   "devDependencies": {
     "@types/node": "25.2.2"

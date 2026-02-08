@@ -20,9 +20,9 @@
     "node": ">=18"
   },
   "dependencies": {
-    "grpr": "workspace:*",
-    "grpr-core": "workspace:*",
-    "grpr-mcp": "workspace:*"
+    "grpr": "github:tillkolter/grpr-mcp#path:packages/grpr-js",
+    "grpr-core": "github:tillkolter/grpr-mcp#path:packages/grpr-core",
+    "grpr-mcp": "github:tillkolter/grpr-mcp#path:packages/grpr-mcp"
   },
   "devDependencies": {
     "@types/node": "25.2.2"

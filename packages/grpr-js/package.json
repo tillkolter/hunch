@@ -27,7 +27,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "grpr-core": "workspace:*"
+    "grpr-core": "github:tillkolter/grpr-mcp#path:packages/grpr-core"
   },
   "devDependencies": {
     "@types/node": "25.2.2"

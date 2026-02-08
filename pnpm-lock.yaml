@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  grpr: workspace:*
+  grpr-core: workspace:*
+  grpr-mcp: workspace:*
+
 importers:
 
   .: {}
