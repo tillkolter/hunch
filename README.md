@@ -31,6 +31,21 @@ hunch mcp
 - `packages/hunch-py` — Python SDK
 - `specs` — shared contract fixtures for parity tests
 
+## SDK parity tests
+
+Parity between SDKs is enforced via shared contract fixtures in
+`specs/emit_cases.json`. Current parity coverage is for `emit`.
+
+Checklist:
+- Update or add cases in `specs/emit_cases.json` when SDK behavior changes.
+- Run JS contract tests: `pnpm test` (builds + `node --test` over
+  `packages/hunch-js/test/emit.contract.test.js`).
+- Run Python contract tests: `pnpm test:py` (or
+  `cd packages/hunch-py && uv run pytest`).
+
+Case fields include `name`, `config`, `env`, `input`, `expect`,
+`expect_missing`, `expect_regex`, `expect_no_write`, `expect_store_dir`.
+
 ## Python SDK (preview)
 
 Local dev install:
