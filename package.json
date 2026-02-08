@@ -6,6 +6,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "test:py": "cd packages/hunch-py && uv run pytest",
+    "spec:check": "node scripts/spec-coverage-check.mjs",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/version-check.mjs"
   }

@@ -33,6 +33,9 @@ jobs:
       - name: Version check (VERSION sync)
         run: node scripts/version-check.mjs
 
+      - name: Spec coverage check
+        run: pnpm run spec:check
+
       - name: Test JS (node --test)
         run: pnpm -r test
 
