@@ -111,7 +111,7 @@ export const loadConfig = (cwd: string = process.cwd()): LoadedConfig => {
     config = mergeConfig(config, localJson as Partial<HunchConfig>);
   }
 
-  if (!configExists && !explicitConfig) {
+  if (!configExists) {
     config = { ...config, enabled: false };
   }
 

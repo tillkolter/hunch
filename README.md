@@ -31,7 +31,7 @@ Hunch reads `.hunch.json` from your repo root. Optional overrides live in
 `.hunch.local.json` (git-ignored).
 
 Hunch is **disabled by default** unless `.hunch.json` exists or `HUNCH_CONFIG`
-points at a config file. You can also set `"enabled": false` inside the config
+points at an existing config file. You can also set `"enabled": false` inside the config
 to turn it off explicitly.
 
 ```json
