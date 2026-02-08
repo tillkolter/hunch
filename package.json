@@ -1,36 +1,12 @@
 {
-  "name": "hunch",
+  "name": "hunch-monorepo",
+  "private": true,
   "version": "0.1.0",
-  "description": "MCP-first telemetry store for AI debugging",
-  "license": "MIT",
-  "type": "module",
-  "bin": {
-    "hunch": "dist/cli.js"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "build:watch": "tsc -p tsconfig.json --watch",
-    "dev": "node --watch dist/cli.js",
-    "test": "node --test",
-    "mcp": "node dist/cli.js mcp",
-    "prepare": "pnpm run build"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "1.26.0"
-  },
-  "devDependencies": {
-    "@types/node": "25.2.2"
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:py": "cd packages/hunch-py && uv run pytest",
+    "version:sync": "node scripts/sync-version.mjs",
+    "version:check": "node scripts/version-check.mjs"
   }
 }

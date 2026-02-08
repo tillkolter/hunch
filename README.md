@@ -25,6 +25,28 @@ hunch wrap --service debate-room --session room-123 -- pnpm run dev
 hunch mcp
 ```
 
+## Monorepo layout
+
+- `packages/hunch-js` — JS SDK + CLI
+- `packages/hunch-py` — Python SDK
+- `specs` — shared contract fixtures for parity tests
+
+## Python SDK (preview)
+
+Local dev install:
+
+```sh
+uv pip install -e packages/hunch-py
+```
+
+Usage:
+
+```py
+from hunch import emit
+
+emit({"message": "hello from python"})
+```
+
 ## Best practice (copy-paste)
 
 1) Add local config (ignored by git):

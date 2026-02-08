@@ -1,0 +1,215 @@
+[
+  {
+    "name": "defaults",
+    "env": {
+      "HUNCH_RUN_ID": "run-111"
+    },
+    "config": {
+      "version": 1,
+      "enabled": true,
+      "store_dir": "logs/hunch",
+      "default_service": "svc-default",
+      "redaction": {
+        "enabled": true,
+        "keys": ["authorization", "api_key", "token", "secret", "password"],
+        "patterns": ["sk-[A-Za-z0-9]{20,}", "Bearer\\s+[A-Za-z0-9._-]+"]
+      },
+      "mcp": {
+        "max_results": 200,
+        "default_lookback_ms": 300000
+      }
+    },
+    "input": {},
+    "expect": {
+      "level": "info",
+      "type": "log",
+      "service": "svc-default",
+      "run_id": "run-111",
+      "source": { "kind": "sdk" }
+    },
+    "expect_missing": ["session_id", "message", "data", "tags", "trace_id", "span_id"],
+    "expect_regex": { "id": "uuid", "ts": "iso" }
+  },
+  {
+    "name": "invalid-level-and-session-env",
+    "env": {
+      "HUNCH_RUN_ID": "run-222",
+      "HUNCH_SESSION_ID": "sess-1"
+    },
+    "config": {
+      "version": 1,
+      "enabled": true,
+      "store_dir": "logs/hunch",
+      "default_service": "svc-default",
+      "redaction": {
+        "enabled": true,
+        "keys": ["authorization", "api_key", "token", "secret", "password"],
+        "patterns": ["sk-[A-Za-z0-9]{20,}", "Bearer\\s+[A-Za-z0-9._-]+"]
+      },
+      "mcp": {
+        "max_results": 200,
+        "default_lookback_ms": 300000
+      }
+    },
+    "input": {
+      "level": "LOUD",
+      "message": "hello"
+    },
+    "expect": {
+      "level": "info",
+      "type": "log",
+      "service": "svc-default",
+      "run_id": "run-222",
+      "session_id": "sess-1",
+      "message": "hello",
+      "source": { "kind": "sdk" }
+    },
+    "expect_missing": ["data", "tags", "trace_id", "span_id"],
+    "expect_regex": { "id": "uuid", "ts": "iso" }
+  },
+  {
+    "name": "service-env-override",
+    "env": {
+      "HUNCH_RUN_ID": "run-333",
+      "HUNCH_SERVICE": "env-service"
+    },
+    "config": {
+      "version": 1,
+      "enabled": true,
+      "store_dir": "logs/hunch",
+      "default_service": "cfg-service",
+      "redaction": {
+        "enabled": true,
+        "keys": ["authorization", "api_key", "token", "secret", "password"],
+        "patterns": ["sk-[A-Za-z0-9]{20,}", "Bearer\\s+[A-Za-z0-9._-]+"]
+      },
+      "mcp": {
+        "max_results": 200,
+        "default_lookback_ms": 300000
+      }
+    },
+    "input": {
+      "message": "hi"
+    },
+    "expect": {
+      "level": "info",
+      "type": "log",
+      "service": "env-service",
+      "run_id": "run-333",
+      "message": "hi",
+      "source": { "kind": "sdk" }
+    },
+    "expect_missing": ["session_id", "data", "tags", "trace_id", "span_id"],
+    "expect_regex": { "id": "uuid", "ts": "iso" }
+  },
+  {
+    "name": "redaction",
+    "env": {
+      "HUNCH_RUN_ID": "run-444"
+    },
+    "config": {
+      "version": 1,
+      "enabled": true,
+      "store_dir": "logs/hunch",
+      "default_service": "svc-default",
+      "redaction": {
+        "enabled": true,
+        "keys": ["token", "api_key", "password"],
+        "patterns": ["sk-[A-Za-z0-9]{20,}"]
+      },
+      "mcp": {
+        "max_results": 200,
+        "default_lookback_ms": 300000
+      }
+    },
+    "input": {
+      "message": "token=abc sk-12345678901234567890",
+      "data": {
+        "token": "abc",
+        "nested": { "api_key": "secret", "ok": 1 }
+      },
+      "tags": {
+        "password": "p",
+        "ok": "yes"
+      }
+    },
+    "expect": {
+      "level": "info",
+      "type": "log",
+      "service": "svc-default",
+      "run_id": "run-444",
+      "message": "token=abc [REDACTED]",
+      "data": {
+        "token": "[REDACTED]",
+        "nested": { "api_key": "[REDACTED]", "ok": 1 }
+      },
+      "tags": {
+        "password": "[REDACTED]",
+        "ok": "yes"
+      },
+      "source": { "kind": "sdk" }
+    },
+    "expect_missing": ["session_id", "trace_id", "span_id"],
+    "expect_regex": { "id": "uuid", "ts": "iso" }
+  },
+  {
+    "name": "disabled",
+    "env": {
+      "HUNCH_RUN_ID": "run-555"
+    },
+    "config": {
+      "version": 1,
+      "enabled": false,
+      "store_dir": "logs/hunch",
+      "default_service": "svc-default",
+      "redaction": {
+        "enabled": true,
+        "keys": ["authorization", "api_key", "token", "secret", "password"],
+        "patterns": ["sk-[A-Za-z0-9]{20,}", "Bearer\\s+[A-Za-z0-9._-]+"]
+      },
+      "mcp": {
+        "max_results": 200,
+        "default_lookback_ms": 300000
+      }
+    },
+    "input": {
+      "message": "should-not-write"
+    },
+    "expect_no_write": true
+  },
+  {
+    "name": "store-dir-override",
+    "env": {
+      "HUNCH_RUN_ID": "run-666"
+    },
+    "config": {
+      "version": 1,
+      "enabled": true,
+      "store_dir": "custom-store",
+      "default_service": "svc-default",
+      "redaction": {
+        "enabled": true,
+        "keys": ["authorization", "api_key", "token", "secret", "password"],
+        "patterns": ["sk-[A-Za-z0-9]{20,}", "Bearer\\s+[A-Za-z0-9._-]+"]
+      },
+      "mcp": {
+        "max_results": 200,
+        "default_lookback_ms": 300000
+      }
+    },
+    "input": {
+      "message": "custom store"
+    },
+    "expect": {
+      "level": "info",
+      "type": "log",
+      "service": "svc-default",
+      "run_id": "run-666",
+      "message": "custom store",
+      "source": { "kind": "sdk" }
+    },
+    "expect_missing": ["session_id", "data", "tags", "trace_id", "span_id"],
+    "expect_regex": { "id": "uuid", "ts": "iso" },
+    "expect_store_dir": "custom-store"
+  }
+]

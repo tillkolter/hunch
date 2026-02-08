@@ -1,0 +1,36 @@
+{
+  "name": "hunch",
+  "version": "0.1.0",
+  "description": "MCP-first telemetry store for AI debugging",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "hunch": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "dev": "node --watch dist/cli.js",
+    "test": "pnpm run build && node --test test/*.test.js",
+    "mcp": "node dist/cli.js mcp",
+    "prepare": "pnpm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.26.0"
+  },
+  "devDependencies": {
+    "@types/node": "25.2.2"
+  }
+}
