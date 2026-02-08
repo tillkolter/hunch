@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  build-test:
+  js:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -16,6 +16,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: "pnpm"
 
       - name: Enable corepack
         run: corepack enable
@@ -34,6 +35,12 @@ jobs:
 
       - name: Test JS
         run: pnpm -r test
+
+  py:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
