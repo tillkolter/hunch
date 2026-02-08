@@ -6,6 +6,8 @@ export type GrprSource = {
   kind: GrprSourceKind;
   file?: string;
   line?: number;
+  backend?: string;
+  backend_id?: string;
 };
 
 export type GrprSdkConfig = {
@@ -36,6 +38,7 @@ export type GrprConfig = {
   store_dir: string;
   default_service: string;
   sdk: GrprSdkConfig;
+  read?: GrprReadConfig;
   redaction: {
     enabled: boolean;
     keys: string[];
@@ -45,6 +48,43 @@ export type GrprConfig = {
     max_results: number;
     default_lookback_ms: number;
   };
+};
+
+export type GrprReadBackendType = "local" | "cloudwatch" | "k8s";
+
+export type GrprLocalReadBackendConfig = {
+  type: "local";
+  id?: string;
+  dir?: string;
+};
+
+export type GrprCloudWatchReadBackendConfig = {
+  type: "cloudwatch";
+  id?: string;
+  logGroup: string;
+  region: string;
+  profile?: string;
+  service?: string;
+};
+
+export type GrprK8sReadBackendConfig = {
+  type: "k8s";
+  id?: string;
+  namespace: string;
+  selector: string;
+  context?: string;
+  container?: string;
+  service?: string;
+};
+
+export type GrprReadBackendConfig =
+  | GrprLocalReadBackendConfig
+  | GrprCloudWatchReadBackendConfig
+  | GrprK8sReadBackendConfig;
+
+export type GrprReadConfig = {
+  backend: "local" | "multi";
+  backends?: GrprReadBackendConfig[];
 };
 
 export type GrprSearchParams = {
@@ -57,6 +97,7 @@ export type GrprSearchParams = {
   since?: string;
   until?: string;
   limit?: number;
+  backends?: string[];
   config_path?: string;
 };
 
@@ -67,6 +108,7 @@ export type GrprStatsParams = {
   until?: string;
   group_by: "type" | "level" | "stage";
   limit?: number;
+  backends?: string[];
   config_path?: string;
 };
 
@@ -74,6 +116,7 @@ export type GrprSessionsParams = {
   service?: string;
   since?: string;
   limit?: number;
+  backends?: string[];
   config_path?: string;
 };
 
@@ -82,5 +125,6 @@ export type GrprTailParams = {
   session_id?: string;
   run_id?: string;
   limit?: number;
+  backends?: string[];
   config_path?: string;
 };

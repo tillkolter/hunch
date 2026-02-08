@@ -12,6 +12,9 @@ const DEFAULT_CONFIG: GrprConfig = {
     capture_stdout: true,
     capture_stderr: true,
   },
+  read: {
+    backend: "local",
+  },
   redaction: {
     enabled: true,
     keys: ["authorization", "api_key", "token", "secret", "password"],
@@ -70,13 +73,25 @@ export const findRepoRoot = (startDir: string): string => {
   }
 };
 
+const mergeSdkConfig = (
+  base: GrprConfig["sdk"],
+  override?: Partial<GrprConfig["sdk"]>,
+): GrprConfig["sdk"] => {
+  return {
+    ...base,
+    ...(override ?? {}),
+  };
+};
+
 const mergeConfig = (base: GrprConfig, override: Partial<GrprConfig>): GrprConfig => {
   return {
     ...base,
     ...override,
-    sdk: {
-      ...base.sdk,
-      ...(override.sdk ?? {}),
+    sdk: mergeSdkConfig(base.sdk, override.sdk),
+    read: {
+      ...(base.read ?? { backend: "local" }),
+      ...(override.read ?? {}),
+      backends: override.read?.backends ?? base.read?.backends,
     },
     redaction: {
       ...base.redaction,
