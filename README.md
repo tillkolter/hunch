@@ -1,9 +1,9 @@
-# Hunch
+# Grpr
 
-Hunch is a tiny, MCP-first telemetry store for AI debugging. It captures JSONL
+Grpr is a tiny, MCP-first telemetry store for AI debugging. It captures JSONL
 telemetry events and exposes a minimal MCP toolset for fast, filtered queries.
 
-Hunch is designed to be:
+Grpr is designed to be:
 - **Language-agnostic**: emit JSONL from any runtime
 - **Filter-first**: no default tailing; MCP tools focus on targeted queries
 - **Low-friction**: small optional SDK, simple `wrap` CLI for stdout/stderr
@@ -11,59 +11,44 @@ Hunch is designed to be:
 ## Install
 
 ```sh
-pnpm add -g hunch-cli
+pnpm add -g grpr-cli
 # or
-npx hunch-cli
+npx grpr-cli
 ```
 
-Note: the `hunch` command is provided by `hunch-cli`. If you already have the
-unrelated npm `hunch` installed globally, uninstall it first.
+Note: the `grpr` command is provided by `grpr-cli`. If you already have the
+unrelated npm `grpr` installed globally, uninstall it first.
 
 ## Quick start
 
 ```sh
-hunch init
-hunch wrap --service debate-room --session room-123 -- pnpm run dev
+grpr init
+grpr wrap --service debate-room --session room-123 -- pnpm run dev
 # in another terminal
-hunch mcp
+grpr mcp
 ```
 
 ## Monorepo layout
 
-- `packages/hunch-cli` — CLI (wrap/emit/checkpoint/mcp)
-- `packages/hunch-core` — shared config/types/store/redaction
-- `packages/hunch-js` — JS SDK
-- `packages/hunch-mcp` — MCP server
-- `packages/hunch-py` — Python SDK
+- `packages/grpr-cli` — CLI (wrap/emit/checkpoint/mcp)
+- `packages/grpr-core` — shared config/types/store/redaction
+- `packages/grpr-js` — JS SDK
+- `packages/grpr-mcp` — MCP server
+- `packages/grpr-py` — Python SDK
 - `specs` — shared contract fixtures for parity tests
-
-## SDK parity tests
-
-Parity between SDKs is enforced via shared contract fixtures in
-`specs/emit_cases.json`. Current parity coverage is for `emit`.
-
-Checklist:
-- Update or add cases in `specs/emit_cases.json` when SDK behavior changes.
-- Run JS contract tests: `pnpm test` (builds + `node --test` over
-  `packages/hunch-js/test/emit.contract.test.js`).
-- Run Python contract tests: `pnpm test:py` (or
-  `cd packages/hunch-py && uv run pytest`).
-
-Case fields include `name`, `config`, `env`, `input`, `expect`,
-`expect_missing`, `expect_regex`, `expect_no_write`, `expect_store_dir`.
 
 ## Python SDK (preview)
 
 Local dev install:
 
 ```sh
-uv pip install -e packages/hunch-py
+uv pip install -e packages/grpr-py
 ```
 
 Usage:
 
 ```py
-from hunch import emit
+from grpr import emit
 
 emit({"message": "hello from python"})
 ```
@@ -72,12 +57,12 @@ emit({"message": "hello from python"})
 
 1) Add local config (ignored by git):
 
-`.hunch.json`
+`.grpr.json`
 ```json
 {
   "version": 1,
   "enabled": true,
-  "store_dir": "logs/hunch",
+  "store_dir": "logs/grpr",
   "default_service": "my-service"
 }
 ```
@@ -85,35 +70,32 @@ emit({"message": "hello from python"})
 2) Add one line to AGENTS.md:
 
 ```
-When debugging, use Hunch telemetry first (hunch.stats → hunch.search; tail only if asked).
+When debugging, use Grpr telemetry first (grpr.stats → grpr.search; tail only if asked).
 ```
 
 3) Run:
 
 ```sh
-hunch wrap --service my-service --session dev-1 -- <your command>
-hunch mcp
+grpr wrap --service my-service --session dev-1 -- <your command>
+grpr mcp
 ```
 
 ## Config
 
-Hunch reads `.hunch.json` from your repo root.
+Grpr reads `.grpr.json` from your repo root.
 
-Hunch is **enabled by default** using built-in defaults. Add a `.hunch.json` or
-set `HUNCH_CONFIG` to override settings. You can also set `"enabled": false`
+Grpr is **enabled by default** using built-in defaults. Add a `.grpr.json` or
+set `GRPR_CONFIG_PATH` to override settings. You can also set `"enabled": false`
 inside the config to turn it off explicitly.
 
 For MCP usage across multiple repos, each tool accepts an optional
-`config_path` parameter to point at a specific `.hunch.json`. You can also pass
-a directory path; Hunch will look for `.hunch.json` inside that directory.
-Relative `config_path` values resolve against the server working directory (or
-`HUNCH_CWD`), so prefer absolute paths when the MCP server runs outside the repo.
+`config_path` parameter to point at a specific `.grpr.json`.
 
 ```json
 {
   "version": 1,
   "enabled": true,
-  "store_dir": "logs/hunch",
+  "store_dir": "logs/grpr",
   "default_service": "ais-avatars",
   "redaction": {
     "enabled": true,
@@ -125,14 +107,21 @@ Relative `config_path` values resolve against the server working directory (or
 ```
 
 ### Environment overrides
-- `HUNCH_CONFIG` — explicit config path
-- `HUNCH_CONFIG_PATH` — alias for `HUNCH_CONFIG`
-- `HUNCH_CWD` — base directory for resolving relative config paths
-- `HUNCH_DIR` — store dir override
-- `HUNCH_ENABLED` — true/false
-- `HUNCH_SERVICE` — service name
-- `HUNCH_SESSION_ID` — session override
-- `HUNCH_RUN_ID` — run id override
+- `GRPR_CONFIG_PATH` — explicit config path
+- `GRPR_DIR` — store dir override
+- `GRPR_ENABLED` — true/false
+- `GRPR_SERVICE` — service name
+- `GRPR_SESSION_ID` — session override
+- `GRPR_RUN_ID` — run id override
+
+### Checkpoint
+
+`grpr checkpoint` writes a `.grpr-checkpoint` file in the root of your
+`store_dir` (the log folder) containing an epoch millisecond timestamp. When
+MCP tools are called without `since`, Grpr uses the checkpoint timestamp as
+the default time window. You
+can also pass `since: "checkpoint"` to explicitly anchor a query to the
+checkpoint.
 
 ## Event schema (JSONL)
 
@@ -158,47 +147,48 @@ Each line in the log is a single JSON event:
 
 ## Store layout
 
-By default, Hunch writes per-run JSONL files:
+By default, Grpr writes per-run JSONL files:
 
 ```
-logs/hunch/<service>/<YYYY-MM-DD>/<run_id>.jsonl
+logs/grpr/<service>/<YYYY-MM-DD>/<run_id>.jsonl
 ```
 
 ## Minimal CLI
 
-Hunch’s CLI is intentionally minimal. It exists to **capture** and **serve**
+Grpr’s CLI is intentionally minimal. It exists to **capture** and **serve**
 telemetry; filtering is MCP-first.
 
-- `hunch init` — create `.hunch.json`
-- `hunch wrap --service <name> --session <id> -- <cmd...>` — capture stdout/stderr
-- `hunch emit --service <name> --session <id>` — append JSON events from stdin
-- `hunch mcp` — start MCP server
+- `grpr init` — create `.grpr.json`
+- `grpr checkpoint` — write `.grpr-checkpoint` epoch timestamp
+- `grpr wrap --service <name> --session <id> -- <cmd...>` — capture stdout/stderr
+- `grpr emit --service <name> --session <id>` — append JSON events from stdin
+- `grpr mcp` — start MCP server
 
 ## MCP tools
 
-Hunch exposes these MCP tools (filter-first):
+Grpr exposes these MCP tools (filter-first):
 
-- `hunch.search`
-- `hunch.stats`
-- `hunch.sessions`
-- `hunch.tail` (available, but not default in docs)
+- `grpr.search`
+- `grpr.stats`
+- `grpr.sessions`
+- `grpr.tail` (available, but not default in docs)
 
 ## AI usage guidance
 
 Start with **stats**, then **search**, and only **tail** if needed:
 
-1) `hunch.stats` with a narrow time window
-2) `hunch.search` for relevant types/levels/messages
-3) `hunch.tail` only when live-streaming is required
+1) `grpr.stats` with a narrow time window
+2) `grpr.search` for relevant types/levels/messages
+3) `grpr.tail` only when live-streaming is required
 
 This keeps prompts short and avoids flooding the model with irrelevant logs.
 
 ## Debugging strategy (recommended)
 
-Use Hunch as a tight loop to avoid log spam and wasted tokens:
+Use Grpr as a tight loop to avoid log spam and wasted tokens:
 
-1) **Scope** with `hunch.stats` (short time window, service/session).
-2) **Inspect** with `hunch.search` for errors/warns or a specific boundary.
+1) **Scope** with `grpr.stats` (short time window, service/session).
+2) **Inspect** with `grpr.search` for errors/warns or a specific boundary.
 3) **Hypothesize** the failing stage or component.
 4) **Instrument** only the boundary (entry/exit, inputs/outputs).
 5) **Re-run** and re-query the same narrow window.
@@ -207,12 +197,12 @@ This keeps investigations focused while still enabling deep, iterative debugging
 
 ## Redaction
 
-Hunch applies redaction on **write** and on **read** using configured key names
+Grpr applies redaction on **write** and on **read** using configured key names
 and regex patterns.
 
 ## Compatibility
 
-Any language can emit Hunch events by writing JSONL lines to the store.
+Any language can emit Grpr events by writing JSONL lines to the store.
 The optional SDK simply adds conveniences like `run_id` and redaction.
 
 ## MCP server config example
@@ -220,11 +210,11 @@ The optional SDK simply adds conveniences like `run_id` and redaction.
 ```json
 {
   "mcpServers": {
-    "hunch": {
-      "command": "hunch",
+    "grpr": {
+      "command": "grpr",
       "args": ["mcp"],
       "env": {
-        "HUNCH_CONFIG": "/path/to/.hunch.json"
+        "GRPR_CONFIG_PATH": "/path/to/.grpr.json"
       }
     }
   }
@@ -234,4 +224,4 @@ The optional SDK simply adds conveniences like `run_id` and redaction.
 ## License
 
 MIT
-# hunch
+# grpr

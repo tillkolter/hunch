@@ -1,0 +1,35 @@
+{
+  "name": "grpr",
+  "version": "0.1.0",
+  "description": "Grpr JS SDK",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./auto": {
+      "types": "./dist/auto.d.ts",
+      "import": "./dist/auto.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "test": "pnpm run build && node --test test/*.test.js",
+    "prepare": "pnpm --filter grpr-core build && pnpm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "grpr-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "25.2.2"
+  }
+}

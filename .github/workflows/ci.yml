@@ -76,4 +76,4 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Test Python (pytest)
-        run: uv run --directory packages/hunch-py --with pytest pytest
+        run: uv run --directory packages/grpr-py --with pytest pytest

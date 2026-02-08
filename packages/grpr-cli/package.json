@@ -1,0 +1,30 @@
+{
+  "name": "grpr-cli",
+  "version": "0.1.0",
+  "description": "CLI for Grpr telemetry capture and MCP",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "grpr": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "dev": "node --watch dist/cli.js",
+    "test": "pnpm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "grpr": "workspace:*",
+    "grpr-core": "workspace:*",
+    "grpr-mcp": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "25.2.2"
+  }
+}
