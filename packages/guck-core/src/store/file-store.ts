@@ -10,6 +10,7 @@ import {
 } from "../schema.js";
 import { parseTimeInput, normalizeTimestamp, formatDateSegment } from "./time.js";
 import { eventMatches } from "./filters.js";
+import { compileQuery } from "./query.js";
 
 const SHARED_DIR_MODE = 0o777;
 const SHARED_FILE_MODE = 0o666;
@@ -107,6 +108,14 @@ export const searchEvents = async (
   const limit = params.limit ?? config.mcp.max_results;
   const sinceMs = params.since ? parseTimeInput(params.since) : undefined;
   const untilMs = params.until ? parseTimeInput(params.until) : undefined;
+  let queryPredicate: ((message: string) => boolean) | undefined;
+  if (params.query) {
+    const compiled = compileQuery(params.query);
+    if (!compiled.ok) {
+      throw new Error(`Invalid query: ${compiled.error}`);
+    }
+    queryPredicate = compiled.predicate;
+  }
   const events: GuckEvent[] = [];
   let truncated = false;
 
@@ -114,6 +123,9 @@ export const searchEvents = async (
   for (const filePath of files) {
     await readJsonLines(filePath, (event) => {
       if (!eventMatches(event, params, sinceMs, untilMs)) {
+        return true;
+      }
+      if (queryPredicate && !queryPredicate(event.message ?? "")) {
         return true;
       }
       events.push(event);

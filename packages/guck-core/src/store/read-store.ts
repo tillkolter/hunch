@@ -14,6 +14,7 @@ import { createCloudWatchBackend } from "./backends/cloudwatch.js";
 import { createK8sBackend } from "./backends/k8s.js";
 import { createLocalBackend } from "./backends/local.js";
 import { ReadBackend } from "./backends/types.js";
+import { compileQuery } from "./query.js";
 
 type BackendEntry = {
   type: string;
@@ -131,6 +132,14 @@ export const readSearch = async (
   rootDir: string,
   params: GuckSearchParams,
 ): Promise<{ events: GuckEvent[]; truncated: boolean; errors?: BackendError[] }> => {
+  let queryPredicate: ((message: string) => boolean) | undefined;
+  if (params.query) {
+    const compiled = compileQuery(params.query);
+    if (!compiled.ok) {
+      throw new Error(`Invalid query: ${compiled.error}`);
+    }
+    queryPredicate = compiled.predicate;
+  }
   const { backends, errors: resolveErrors } = resolveBackends(config, rootDir);
   const selected = filterBackends(backends, params.backends);
   const errors: BackendError[] = [...resolveErrors];
@@ -172,7 +181,10 @@ export const readSearch = async (
     }
   }
 
-  const sorted = sortEventsDesc(events);
+  const filtered = queryPredicate
+    ? events.filter((event) => queryPredicate?.(event.message ?? ""))
+    : events;
+  const sorted = sortEventsDesc(filtered);
   const mergedCount = sorted.length;
   const sliced = sorted.slice(0, limit);
   if (mergedCount > limit) {
@@ -322,6 +334,7 @@ export const readTail = async (
     service: params.service,
     session_id: params.session_id,
     run_id: params.run_id,
+    query: params.query,
     since: params.since,
     limit: config.mcp.max_results,
     backends: params.backends,

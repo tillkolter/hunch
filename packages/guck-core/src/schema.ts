@@ -94,9 +94,13 @@ export type GuckSearchParams = {
   types?: string[];
   levels?: GuckLevel[];
   contains?: string;
+  query?: string;
   since?: string;
   until?: string;
   limit?: number;
+  format?: "json" | "text";
+  fields?: string[];
+  template?: string;
   backends?: string[];
   config_path?: string;
 };
@@ -125,6 +129,10 @@ export type GuckTailParams = {
   session_id?: string;
   run_id?: string;
   limit?: number;
+  query?: string;
+  format?: "json" | "text";
+  fields?: string[];
+  template?: string;
   backends?: string[];
   config_path?: string;
 };

@@ -26,7 +26,7 @@
     "build": "tsc -p tsconfig.json",
     "build:watch": "tsc -p tsconfig.json --watch",
     "prepare": "pnpm run build",
-    "test": "pnpm run build"
+    "test": "pnpm run build && node --test test"
   },
   "engines": {
     "node": ">=18"

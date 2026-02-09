@@ -205,6 +205,24 @@ Guck exposes these MCP tools (filter-first):
 - `guck.sessions`
 - `guck.tail` (available, but not default in docs)
 
+## Search and tail parameters
+
+`guck.search` and `guck.tail` support additional output and query controls:
+
+- `query` — boolean search over **message only** (case-insensitive). Supports `AND`, `OR`, `NOT`, parentheses, and quoted phrases.
+- `contains` — substring search across message/type/session_id/data (unchanged).
+- `format` — `json` (default) or `text`.
+- `fields` — when `format: "json"`, project events to these top-level fields.
+- `template` — when `format: "text"`, format each line using tokens like `{ts}|{service}|{message}`. Missing tokens become empty strings.
+
+Examples:
+
+```json
+{ "query": "error AND (db OR timeout)" }
+{ "format": "text", "template": "{ts}|{service}|{message}" }
+{ "format": "json", "fields": ["ts", "level", "message"] }
+```
+
 ## AI usage guidance
 
 Start with **stats**, then **search**, and only **tail** if needed:

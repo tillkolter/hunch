@@ -1,0 +1,1 @@
+When debugging, use Guck telemetry first (guck.stats → guck.search; tail only if asked). Use `query` for boolean, message-only search; use `format: "text"` with `template` like `{ts}|{service}|{message}` for condensed output, or `fields` for JSON projection.

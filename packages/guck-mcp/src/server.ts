@@ -10,7 +10,9 @@ import {
   GuckSessionsParams,
   GuckStatsParams,
   GuckTailParams,
+  formatEventText,
   loadConfig,
+  projectEventFields,
   readCheckpoint,
   readSearch,
   readSessions,
@@ -29,9 +31,13 @@ const SEARCH_SCHEMA = {
     types: { type: "array", items: { type: "string" } },
     levels: { type: "array", items: { type: "string" } },
     contains: { type: "string" },
+    query: { type: "string" },
     since: { type: "string" },
     until: { type: "string" },
     limit: { type: "number" },
+    format: { type: "string", enum: ["json", "text"] },
+    fields: { type: "array", items: { type: "string" } },
+    template: { type: "string" },
     backends: { type: "array", items: { type: "string" } },
     config_path: { type: "string" },
   },
@@ -73,6 +79,10 @@ const TAIL_SCHEMA = {
     session_id: { type: "string" },
     run_id: { type: "string" },
     limit: { type: "number" },
+    query: { type: "string" },
+    format: { type: "string", enum: ["json", "text"] },
+    fields: { type: "array", items: { type: "string" } },
+    template: { type: "string" },
     backends: { type: "array", items: { type: "string" } },
     config_path: { type: "string" },
   },
@@ -128,7 +138,8 @@ export const startMcpServer = async (): Promise<void> => {
       tools: [
         {
           name: "guck.search",
-          description: "Search telemetry events with filters.",
+          description:
+            "Search telemetry events with filters. Supports boolean message-only query (query), JSON field projection (fields), or text formatting with template (format: text + template).",
           inputSchema: SEARCH_SCHEMA,
         },
         {
@@ -143,7 +154,8 @@ export const startMcpServer = async (): Promise<void> => {
         },
         {
           name: "guck.tail",
-          description: "Return the most recent events (non-streaming).",
+          description:
+            "Return the most recent events (non-streaming). Supports message-only boolean query (query) and output formatting (format: json/text, fields, template).",
           inputSchema: TAIL_SCHEMA,
         },
       ],
@@ -169,9 +181,34 @@ export const startMcpServer = async (): Promise<void> => {
         ...filters,
         since: resolveSince(filters.since, config, storeDir),
       };
-      const result = await readSearch(config, rootDir, withDefaults);
-      const redacted = result.events.map((event) => redactEvent(config, event));
-      return buildText({ ...result, events: redacted });
+      try {
+        const result = await readSearch(config, rootDir, withDefaults);
+        const redacted = result.events.map((event) => redactEvent(config, event));
+        if (input.format === "text") {
+          const lines = redacted.map((event) => formatEventText(event, input.template));
+          return buildText({
+            format: "text",
+            lines,
+            truncated: result.truncated,
+            errors: result.errors,
+          });
+        }
+        if (input.fields && input.fields.length > 0) {
+          const projected = redacted.map((event) => projectEventFields(event, input.fields ?? []));
+          return buildText({
+            format: "json",
+            events: projected,
+            truncated: result.truncated,
+            errors: result.errors,
+          });
+        }
+        return buildText({ format: "json", ...result, events: redacted });
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("Invalid query:")) {
+          return buildText({ error: error.message, query: input.query });
+        }
+        throw error;
+      }
     }
 
     if (request.params.name === "guck.stats") {
@@ -201,16 +238,43 @@ export const startMcpServer = async (): Promise<void> => {
       const { config_path: _configPath, ...filters } = input;
       const limit = input.limit ?? Math.min(config.mcp.max_results, 50);
       const since = resolveSince(undefined, config, storeDir);
-      const result = await readTail(config, rootDir, {
-        service: filters.service,
-        session_id: filters.session_id,
-        run_id: filters.run_id,
-        limit,
-        backends: filters.backends,
-        since,
-      });
+      let result;
+      try {
+        result = await readTail(config, rootDir, {
+          service: filters.service,
+          session_id: filters.session_id,
+          run_id: filters.run_id,
+          query: filters.query,
+          limit,
+          backends: filters.backends,
+          since,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("Invalid query:")) {
+          return buildText({ error: error.message, query: input.query });
+        }
+        throw error;
+      }
       const redacted = result.events.map((event) => redactEvent(config, event));
-      return buildText({ ...result, events: redacted });
+      if (input.format === "text") {
+        const lines = redacted.map((event) => formatEventText(event, input.template));
+        return buildText({
+          format: "text",
+          lines,
+          truncated: result.truncated,
+          errors: result.errors,
+        });
+      }
+      if (input.fields && input.fields.length > 0) {
+        const projected = redacted.map((event) => projectEventFields(event, input.fields ?? []));
+        return buildText({
+          format: "json",
+          events: projected,
+          truncated: result.truncated,
+          errors: result.errors,
+        });
+      }
+      return buildText({ format: "json", ...result, events: redacted });
     }
 
     throw new Error(`Unknown tool: ${request.params.name}`);
