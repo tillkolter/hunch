@@ -55,6 +55,8 @@ def test_auto_capture_contract(test_case, tmp_path, monkeypatch):
     monkeypatch.delenv("GUCK_WRAPPED", raising=False)
     monkeypatch.setenv("GUCK_CONFIG_PATH", str(config_path))
 
+    emit_module = importlib.import_module("guck.emit")
+    importlib.reload(emit_module)
     auto_module = importlib.import_module("guck.auto")
     importlib.reload(auto_module)
     handle = auto_module.install_auto_capture()
