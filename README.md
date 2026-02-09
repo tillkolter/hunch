@@ -223,6 +223,12 @@ Examples:
 { "format": "json", "fields": ["ts", "level", "message"] }
 ```
 
+Recommended minimal output for agents:
+
+```json
+{ "format": "text", "template": "{ts}|{service}|{message}" }
+```
+
 ## AI usage guidance
 
 Start with **stats**, then **search**, and only **tail** if needed:
