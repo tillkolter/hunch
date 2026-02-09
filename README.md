@@ -18,6 +18,7 @@ npx @guckdev/cli
 
 Note: the `guck` command is provided by `@guckdev/cli`. If you already have the
 unrelated npm `guck` installed globally, uninstall it first.
+If you previously installed `guck-cli`, switch to `@guckdev/cli`.
 
 ## Quick start
 
