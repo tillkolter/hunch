@@ -11,8 +11,20 @@ import {
 import { parseTimeInput, normalizeTimestamp, formatDateSegment } from "./time.js";
 import { eventMatches } from "./filters.js";
 
+const SHARED_DIR_MODE = 0o777;
+const SHARED_FILE_MODE = 0o666;
+
+const safeChmod = async (targetPath: string, mode: number): Promise<void> => {
+  try {
+    await fs.promises.chmod(targetPath, mode);
+  } catch {
+    // Best-effort only; ignore permission errors to avoid crashing.
+  }
+};
+
 const ensureDir = async (dir: string): Promise<void> => {
   await fs.promises.mkdir(dir, { recursive: true });
+  await safeChmod(dir, SHARED_DIR_MODE);
 };
 
 const getEventTimestamp = (event: GuckEvent): number | undefined => {
@@ -75,10 +87,15 @@ export const appendEvent = async (
   event: GuckEvent,
 ): Promise<string> => {
   const dateSegment = formatDateSegment(new Date(event.ts));
-  const fileDir = path.join(storeDir, event.service, dateSegment);
+  const serviceDir = path.join(storeDir, event.service);
+  const fileDir = path.join(serviceDir, dateSegment);
   await ensureDir(fileDir);
+  await safeChmod(storeDir, SHARED_DIR_MODE);
+  await safeChmod(serviceDir, SHARED_DIR_MODE);
+  await safeChmod(fileDir, SHARED_DIR_MODE);
   const filePath = path.join(fileDir, `${event.run_id}.jsonl`);
   await fs.promises.appendFile(filePath, `${JSON.stringify(event)}\n`, "utf8");
+  await safeChmod(filePath, SHARED_FILE_MODE);
   return filePath;
 };
 
