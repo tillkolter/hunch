@@ -23,23 +23,86 @@ import {
 } from "@guckdev/core";
 const SEARCH_SCHEMA = {
   type: "object",
+  description:
+    "Search telemetry events. All filters are combined with AND; query is a message-only boolean expression applied after other filters.",
   additionalProperties: false,
   properties: {
-    service: { type: "string" },
-    session_id: { type: "string" },
-    run_id: { type: "string" },
-    types: { type: "array", items: { type: "string" } },
-    levels: { type: "array", items: { type: "string" } },
-    contains: { type: "string" },
-    query: { type: "string" },
-    since: { type: "string" },
-    until: { type: "string" },
-    limit: { type: "number" },
-    format: { type: "string", enum: ["json", "text"] },
-    fields: { type: "array", items: { type: "string" } },
-    template: { type: "string" },
-    backends: { type: "array", items: { type: "string" } },
-    config_path: { type: "string" },
+    service: {
+      type: "string",
+      description: "Exact match on event.service (use to scope to a single service).",
+    },
+    session_id: {
+      type: "string",
+      description: "Exact match on event.session_id.",
+    },
+    run_id: {
+      type: "string",
+      description: "Exact match on event.run_id.",
+    },
+    types: {
+      type: "array",
+      items: { type: "string" },
+      description: "Only include events whose event.type is in this list.",
+    },
+    levels: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Only include events whose event.level is in this list (trace, debug, info, warn, error, fatal).",
+    },
+    contains: {
+      type: "string",
+      description:
+        "Case-insensitive substring match across event.message, event.type, event.session_id, and event.data JSON.",
+    },
+    query: {
+      type: "string",
+      description:
+        "Boolean search applied to event.message only. Supports AND/OR/NOT, parentheses, quotes, and implicit AND (e.g. \"timeout AND retry\"). Case-insensitive.",
+    },
+    since: {
+      type: "string",
+      description:
+        "Start time filter. Accepts ISO timestamps or relative durations like 15m/2h/1d. Also supports \"checkpoint\" to resume from the last saved checkpoint.",
+    },
+    until: {
+      type: "string",
+      description:
+        "End time filter. Accepts ISO timestamps or relative durations like 15m/2h/1d.",
+    },
+    limit: {
+      type: "number",
+      description:
+        "Maximum number of events to return (defaults to config.mcp.max_results).",
+    },
+    format: {
+      type: "string",
+      enum: ["json", "text"],
+      description:
+        "Output format: json returns events; text returns formatted lines (use template to customize).",
+    },
+    fields: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "JSON projection of event fields to return. Allowed fields: id, ts, level, type, service, run_id, session_id, message, data, tags, trace_id, span_id, source.",
+    },
+    template: {
+      type: "string",
+      description:
+        "Text format template when format is \"text\". Tokens like {ts}, {level}, {service}, {message} are replaced; unknown tokens become empty. Example: \"{ts}|{service}|{message}\".",
+    },
+    backends: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Restrict search to specific read backends by id or type (local, cloudwatch, k8s).",
+    },
+    config_path: {
+      type: "string",
+      description:
+        "Path to .guck.json or a directory containing it; overrides default config resolution.",
+    },
   },
 } as const;
 
