@@ -74,6 +74,7 @@ Then point the browser SDK at `/guck/emit`.
 - `packages/guck-js` — JS SDK
 - `packages/guck-mcp` — MCP server
 - `packages/guck-py` — Python SDK
+- `packages/guck-vite` — Vite dev server plugin
 - `specs` — shared contract fixtures for parity tests
 
 ## Python SDK (preview)
