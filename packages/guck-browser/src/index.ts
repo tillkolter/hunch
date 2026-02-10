@@ -29,7 +29,6 @@ type BrowserClientOptions = {
   runId?: string;
   tags?: Record<string, string>;
   headers?: Record<string, string>;
-  configPath?: string | (() => string | undefined);
   enabled?: boolean;
   keepalive?: boolean;
   fetch?: typeof fetch;
@@ -228,7 +227,6 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
   const runId = options.runId ?? randomId();
   const tags = options.tags;
   const headers = options.headers ?? {};
-  const configPath = options.configPath;
   const devHost = isDevEndpoint(endpoint);
   const enabled = devHost && (options.enabled ?? true);
   const keepalive = options.keepalive ?? true;
@@ -259,12 +257,6 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
       "content-type": "application/json",
       ...headers,
     };
-    const resolvedConfigPath =
-      typeof configPath === "function" ? configPath() : configPath;
-    const shouldSendConfigPath = !!resolvedConfigPath && devHost;
-    if (shouldSendConfigPath && resolvedConfigPath) {
-      requestHeaders["x-guck-config-path"] = resolvedConfigPath;
-    }
 
     const response = await fetcher(endpoint, {
       method: "POST",

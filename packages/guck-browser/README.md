@@ -20,9 +20,6 @@ const client = createBrowserClient({
   endpoint: "http://localhost:7331/guck/emit",
   service: "web-ui",
   sessionId: "dev-1",
-  // Optional: send a config path so the ingest server picks the right .guck.json.
-  // Use a function to avoid baking the path into your bundle.
-  configPath: () => "/absolute/path/to/your/project",
 });
 
 await client.emit({ message: "hello from the browser" });
@@ -72,7 +69,6 @@ const client = createBrowserClient({
   endpoint: "https://local.hey.bild.de/guck/emit",
   service: "playground",
   sessionId: "dev-1",
-  configPath: () => "/Users/you/work/ais-avatars",
 });
 ```
 
@@ -87,7 +83,6 @@ if (import.meta.env.DEV) {
     endpoint: "https://local.hey.bild.de/guck/emit",
     service: "playground",
     sessionId: "dev-1",
-    configPath: () => "/Users/you/work/ais-avatars",
   });
   client.installAutoCapture();
 }
@@ -107,8 +102,6 @@ stop();
 Notes:
 - The HTTP ingest endpoint is CORS-enabled by default.
 - If your page is served over HTTPS, posting to an HTTP localhost endpoint may be blocked by mixed-content rules.
-- `configPath` can be a directory (containing `.guck.json`) or a direct path to a `.guck.json` file.
-- `configPath` is sent as a request header (not part of the event body).
 - The SDK only runs when the endpoint host is local (`localhost`, `127.0.0.1`, `local.*`, `*.local`).
 - `createBrowserClient()` throws when `NODE_ENV` / `import.meta.env.PROD` indicates production.
 - `installAutoCapture()` should usually be called once at app startup; repeated calls will wrap console multiple times.
