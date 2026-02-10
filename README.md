@@ -167,6 +167,7 @@ const { stop } = client.installAutoCapture();
 
 console.error("boom");
 
+// call stop() to restore console and listeners (useful in component unmounts/tests)
 stop();
 ```
 
@@ -185,6 +186,10 @@ HTTP ingest config (optional defaults shown):
   }
 }
 ```
+
+Notes:
+- `installAutoCapture()` should usually be called once at app startup; repeated calls will wrap console multiple times.
+- If you install it inside a component or test, call `stop()` on cleanup to avoid duplicate logging.
 
 ### Environment overrides
 - `GUCK_CONFIG_PATH` — explicit config path

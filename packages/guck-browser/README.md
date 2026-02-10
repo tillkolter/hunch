@@ -31,13 +31,15 @@ const { stop } = client.installAutoCapture();
 
 console.error("boom");
 
-// call stop() to restore console and listeners
+// call stop() to restore console and listeners (useful in component unmounts/tests)
 stop();
 ```
 
 Notes:
 - The HTTP ingest endpoint is CORS-enabled by default.
 - If your page is served over HTTPS, posting to an HTTP localhost endpoint may be blocked by mixed-content rules.
+- `installAutoCapture()` should usually be called once at app startup; repeated calls will wrap console multiple times.
+- If you install it inside a component or test, call `stop()` on cleanup to avoid duplicate logging.
 
 ### Caddy (HTTPS dev) proxy example
 
