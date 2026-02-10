@@ -76,6 +76,9 @@ export type GuckK8sReadBackendConfig = {
   context?: string;
   container?: string;
   service?: string;
+  clusterName?: string;
+  region?: string;
+  profile?: string;
 };
 
 export type GuckReadBackendConfig =

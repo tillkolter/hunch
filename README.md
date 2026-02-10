@@ -184,6 +184,31 @@ If you need a custom location, set `GUCK_DIR` on the **server** process
 
 Remote backends (CloudWatch/K8s) require optional SDK installs; install only if you use them.
 
+Kubernetes (EKS) backend example (SDK auth; no aws/kubectl exec):
+
+```json
+{
+  "read": {
+    "backend": "multi",
+    "backends": [
+      {
+        "type": "k8s",
+        "id": "k8s-api",
+        "namespace": "avatars",
+        "selector": "app.kubernetes.io/component=api,app.kubernetes.io/instance=avatars",
+        "container": "avatars",
+        "clusterName": "eks1-euc1-stg-bi",
+        "region": "eu-central-1",
+        "profile": "business-innovation-dev.admin"
+      }
+    ]
+  }
+}
+```
+
+If `clusterName` and `region` are set (or your kubeconfig user uses `aws eks get-token`),
+Guck uses the AWS SDK to fetch tokens and ignores kubeconfig exec plugins.
+
 ### JS SDK auto-capture (stdout/stderr)
 
 The JS SDK can patch `process.stdout` and `process.stderr` to emit Guck events.
