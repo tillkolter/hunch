@@ -20,10 +20,11 @@
   },
   "pnpm": {
     "overrides": {
-      "@guckdev/sdk": "workspace:*",
-      "@guckdev/core": "workspace:*",
-      "@guckdev/mcp": "workspace:*",
-      "@guckdev/browser": "workspace:*"
-    }
+    "@guckdev/sdk": "workspace:*",
+    "@guckdev/core": "workspace:*",
+    "@guckdev/mcp": "workspace:*",
+    "@guckdev/browser": "workspace:*",
+    "@guckdev/vite": "workspace:*"
   }
+}
 }

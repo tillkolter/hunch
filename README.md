@@ -52,6 +52,21 @@ emit({ message: "hello from app" });
 3) Run your app; the MCP client will spawn `guck mcp` and logs are queryable via
 `guck.stats` / `guck.search`.
 
+## Vite drop-in (shared MCP)
+
+Add a dev-only proxy inside Vite so the browser never sends filesystem paths:
+
+```ts
+import { defineConfig } from "vite";
+import { guckVitePlugin } from "@guckdev/vite";
+
+export default defineConfig({
+  plugins: [guckVitePlugin()],
+});
+```
+
+Then point the browser SDK at `/guck/emit`.
+
 ## Monorepo layout
 
 - `packages/guck-cli` — CLI (wrap/emit/checkpoint/mcp)

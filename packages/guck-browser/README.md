@@ -28,6 +28,22 @@ const client = createBrowserClient({
 await client.emit({ message: "hello from the browser" });
 ```
 
+## Vite drop-in (shared MCP)
+
+1) `pnpm add -D @guckdev/vite`
+2) Add the plugin in `vite.config.ts`:
+
+```ts
+import { defineConfig } from "vite";
+import { guckVitePlugin } from "@guckdev/vite";
+
+export default defineConfig({
+  plugins: [guckVitePlugin()],
+});
+```
+
+3) Use `/guck/emit` as the browser endpoint.
+
 ## Quick local setup (HTTPS dev host)
 
 1) Start the MCP server with HTTP ingest:

@@ -1,0 +1,41 @@
+{
+  "name": "@guckdev/vite",
+  "version": "0.1.0",
+  "description": "Vite plugin for Guck browser ingest",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tillkolter/guck-mcp"
+  },
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "tsconfig.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "test": "pnpm run build && node --test test/*.test.js",
+    "prepare": "pnpm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "vite": "^5.0.0 || ^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "25.2.2",
+    "vite": "^5.4.0"
+  }
+}
