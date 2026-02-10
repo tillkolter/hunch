@@ -40,6 +40,8 @@ Notes:
 - If your page is served over HTTPS, posting to an HTTP localhost endpoint may be blocked by mixed-content rules.
 - `installAutoCapture()` should usually be called once at app startup; repeated calls will wrap console multiple times.
 - If you install it inside a component or test, call `stop()` on cleanup to avoid duplicate logging.
+- For SPAs, it's fine to call `installAutoCapture()` once in your app entry (e.g. `index.ts`) and never call `stop()`.
+- There is no prebuilt UMD/IIFE bundle yet; for vanilla JS you should use a bundler (Vite/Rollup/etc) or a native ESM import in a modern build.
 
 ### Caddy (HTTPS dev) proxy example
 

@@ -190,6 +190,8 @@ HTTP ingest config (optional defaults shown):
 Notes:
 - `installAutoCapture()` should usually be called once at app startup; repeated calls will wrap console multiple times.
 - If you install it inside a component or test, call `stop()` on cleanup to avoid duplicate logging.
+- For SPAs, it's fine to call `installAutoCapture()` once in your app entry (e.g. `index.ts`) and never call `stop()`.
+- There is no prebuilt UMD/IIFE bundle yet; for vanilla JS you should use a bundler or a native ESM import.
 
 ### Environment overrides
 - `GUCK_CONFIG_PATH` — explicit config path
