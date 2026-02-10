@@ -8,7 +8,6 @@ module.exports = {
       "@semantic-release/exec",
       {
         prepareCmd: "node scripts/release-prepare.mjs ${nextRelease.version}",
-        publishCmd: "node scripts/release-publish.mjs ${nextRelease.version}",
       },
     ],
     "@semantic-release/github",
