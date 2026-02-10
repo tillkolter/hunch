@@ -195,11 +195,12 @@ const isDevEndpoint = (endpoint: string): boolean => {
 };
 
 const isProdBuild = (): boolean => {
-  if (typeof process !== "undefined") {
-    const env = (process as { env?: Record<string, string | undefined> }).env;
-    if (env && typeof env.NODE_ENV === "string") {
-      return env.NODE_ENV === "production";
-    }
+  const globalProcess = (
+    globalThis as { process?: { env?: Record<string, string | undefined> } }
+  ).process;
+  const nodeEnv = globalProcess?.env?.NODE_ENV;
+  if (typeof nodeEnv === "string") {
+    return nodeEnv === "production";
   }
   const meta =
     typeof import.meta !== "undefined"
