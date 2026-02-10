@@ -30,8 +30,6 @@ type BrowserClientOptions = {
   tags?: Record<string, string>;
   headers?: Record<string, string>;
   configPath?: string | (() => string | undefined);
-  configPathMode?: "always" | "dev-only";
-  devOnly?: boolean;
   enabled?: boolean;
   keepalive?: boolean;
   fetch?: typeof fetch;
@@ -187,6 +185,15 @@ const isDevHost = (hostname?: string): boolean => {
   );
 };
 
+const isDevEndpoint = (endpoint: string): boolean => {
+  try {
+    const url = new URL(endpoint);
+    return isDevHost(url.hostname);
+  } catch {
+    return false;
+  }
+};
+
 export const createBrowserClient = (options: BrowserClientOptions): BrowserClient => {
   if (!options?.endpoint) {
     throw new Error("[guck] endpoint is required");
@@ -198,12 +205,8 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
   const tags = options.tags;
   const headers = options.headers ?? {};
   const configPath = options.configPath;
-  const configPathMode = options.configPathMode ?? "dev-only";
-  const devOnly = options.devOnly ?? true;
-  const hostname =
-    typeof window !== "undefined" ? window.location.hostname : undefined;
-  const devHost = isDevHost(hostname);
-  const enabled = options.enabled ?? (devOnly ? devHost : true);
+  const devHost = isDevEndpoint(endpoint);
+  const enabled = devHost && (options.enabled ?? true);
   const keepalive = options.keepalive ?? true;
   const fetcher = options.fetch ?? fetch;
   const onError = options.onError;
@@ -234,11 +237,7 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
     };
     const resolvedConfigPath =
       typeof configPath === "function" ? configPath() : configPath;
-    const shouldSendConfigPath =
-      !!resolvedConfigPath &&
-      (configPathMode === "always" ||
-        (configPathMode === "dev-only" &&
-          devHost));
+    const shouldSendConfigPath = !!resolvedConfigPath && devHost;
     if (shouldSendConfigPath && resolvedConfigPath) {
       requestHeaders["x-guck-config-path"] = resolvedConfigPath;
     }

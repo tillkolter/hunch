@@ -1,7 +1,7 @@
 # Guck (Browser SDK)
 
 Browser SDK for emitting Guck telemetry to a local MCP HTTP ingest endpoint.
-This package is intended for **development only**. Do not ship it in production bundles.
+This package is intended for **development only** and is inert unless the endpoint host is local.
 
 ## Usage
 
@@ -23,10 +23,6 @@ const client = createBrowserClient({
   // Optional: send a config path so the ingest server picks the right .guck.json.
   // Use a function to avoid baking the path into your bundle.
   configPath: () => "/absolute/path/to/your/project",
-  // Default is "dev-only" (localhost / 127.0.0.1 / local.* / *.local).
-  configPathMode: "dev-only",
-  // Default is true; disables the client automatically on non-dev hosts.
-  devOnly: true,
 });
 
 await client.emit({ message: "hello from the browser" });
@@ -61,14 +57,12 @@ const client = createBrowserClient({
   service: "playground",
   sessionId: "dev-1",
   configPath: () => "/Users/you/work/ais-avatars",
-  configPathMode: "dev-only",
-  devOnly: true,
 });
 ```
 
 ## Keep it out of production
 
-Use a dev-only import so the SDK never gets bundled for production:
+Use a development-only import so the SDK never gets bundled for production:
 
 ```ts
 if (import.meta.env.DEV) {
@@ -99,8 +93,7 @@ Notes:
 - If your page is served over HTTPS, posting to an HTTP localhost endpoint may be blocked by mixed-content rules.
 - `configPath` can be a directory (containing `.guck.json`) or a direct path to a `.guck.json` file.
 - `configPath` is sent as a request header (not part of the event body).
-- `configPathMode` defaults to `"dev-only"` to avoid accidentally shipping local paths in production builds.
-- `devOnly` defaults to `true` and disables the client automatically on non-dev hosts.
+- The SDK is inert unless the endpoint host is local (`localhost`, `127.0.0.1`, `local.*`, `*.local`).
 - `installAutoCapture()` should usually be called once at app startup; repeated calls will wrap console multiple times.
 - If you install it inside a component or test, call `stop()` on cleanup to avoid duplicate logging.
 - For SPAs, it's fine to call `installAutoCapture()` once in your app entry (e.g. `index.ts`) and never call `stop()`.
