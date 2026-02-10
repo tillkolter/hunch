@@ -12,27 +12,10 @@ import { normalizeTimestamp, parseTimeInput } from "../time.js";
 import { ReadBackend, SearchResult, SessionsResult, StatsResult } from "./types.js";
 
 type K8sClient = {
-  listNamespacedPod: (
-    namespace: string,
-    pretty?: string,
-    allowWatchBookmarks?: boolean,
-    _continue?: string,
-    fieldSelector?: string,
-    labelSelector?: string,
-  ) => Promise<{ body: { items: Array<{ metadata?: { name?: string } }> } }>;
-  readNamespacedPodLog: (
-    name: string,
-    namespace: string,
-    container?: string,
-    follow?: boolean,
-    pretty?: string,
-    previous?: boolean,
-    sinceSeconds?: number,
-    sinceTime?: string,
-    timestamps?: boolean,
-    tailLines?: number,
-    limitBytes?: number,
-  ) => Promise<{ body: string }>;
+  listNamespacedPod: (...args: unknown[]) => Promise<{
+    body: { items: Array<{ metadata?: { name?: string } }> };
+  }>;
+  readNamespacedPodLog: (...args: unknown[]) => Promise<{ body: string }>;
 };
 
 const inferLevel = (message?: string): "fatal" | "error" | "warn" | "info" | "debug" | "trace" => {
@@ -236,6 +219,62 @@ const loadClient = (context?: string): K8sClient => {
   return client;
 };
 
+const listNamespacedPod = async (
+  client: K8sClient,
+  params: { namespace: string; labelSelector?: string },
+): Promise<{ body: { items: Array<{ metadata?: { name?: string } }> } }> => {
+  const listFn = client.listNamespacedPod;
+  if (listFn.length <= 1) {
+    return listFn({
+      namespace: params.namespace,
+      labelSelector: params.labelSelector,
+    });
+  }
+  return listFn(
+    params.namespace,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    params.labelSelector,
+  );
+};
+
+const readNamespacedPodLog = async (
+  client: K8sClient,
+  params: {
+    name: string;
+    namespace: string;
+    container?: string;
+    follow?: boolean;
+    sinceSeconds?: number;
+    timestamps?: boolean;
+  },
+): Promise<{ body: string }> => {
+  const readFn = client.readNamespacedPodLog;
+  if (readFn.length <= 1) {
+    return readFn({
+      name: params.name,
+      namespace: params.namespace,
+      container: params.container,
+      follow: params.follow,
+      sinceSeconds: params.sinceSeconds,
+      timestamps: params.timestamps,
+    });
+  }
+  return readFn(
+    params.name,
+    params.namespace,
+    params.container,
+    params.follow,
+    undefined,
+    undefined,
+    params.sinceSeconds,
+    undefined,
+    params.timestamps,
+  );
+};
+
 const parseLogLine = (line: string): { ts: string; message: string } => {
   const trimmed = line.trim();
   if (!trimmed) {
@@ -273,31 +312,24 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
     const events: GuckEvent[] = [];
     let truncated = false;
 
-    const pods = await client.listNamespacedPod(
-      config.namespace,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      config.selector,
-    );
+    const pods = await listNamespacedPod(client, {
+      namespace: config.namespace,
+      labelSelector: config.selector,
+    });
 
     for (const pod of pods.body.items) {
       const podName = pod.metadata?.name;
       if (!podName) {
         continue;
       }
-      const response = await client.readNamespacedPodLog(
-        podName,
-        config.namespace,
-        config.container,
-        false,
-        undefined,
-        undefined,
+      const response = await readNamespacedPodLog(client, {
+        name: podName,
+        namespace: config.namespace,
+        container: config.container,
+        follow: false,
         sinceSeconds,
-        undefined,
-        true,
-      );
+        timestamps: true,
+      });
       const lines = response.body.split(/\r?\n/);
       for (const line of lines) {
         if (!line.trim()) {
