@@ -29,7 +29,8 @@ type BrowserClientOptions = {
   runId?: string;
   tags?: Record<string, string>;
   headers?: Record<string, string>;
-  configPath?: string;
+  configPath?: string | (() => string | undefined);
+  configPathMode?: "always" | "dev-only";
   enabled?: boolean;
   keepalive?: boolean;
   fetch?: typeof fetch;
@@ -183,6 +184,7 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
   const tags = options.tags;
   const headers = options.headers ?? {};
   const configPath = options.configPath;
+  const configPathMode = options.configPathMode ?? "dev-only";
   const enabled = options.enabled ?? true;
   const keepalive = options.keepalive ?? true;
   const fetcher = options.fetch ?? fetch;
@@ -212,8 +214,22 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
       "content-type": "application/json",
       ...headers,
     };
-    if (configPath) {
-      requestHeaders["x-guck-config-path"] = configPath;
+    const resolvedConfigPath =
+      typeof configPath === "function" ? configPath() : configPath;
+    const hostname =
+      typeof window !== "undefined" ? window.location.hostname : undefined;
+    const shouldSendConfigPath =
+      !!resolvedConfigPath &&
+      (configPathMode === "always" ||
+        (configPathMode === "dev-only" &&
+          !!hostname &&
+          (hostname === "localhost" ||
+            hostname === "127.0.0.1" ||
+            hostname === "[::1]" ||
+            hostname.startsWith("local.") ||
+            hostname.endsWith(".local"))));
+    if (shouldSendConfigPath && resolvedConfigPath) {
+      requestHeaders["x-guck-config-path"] = resolvedConfigPath;
     }
 
     const response = await fetcher(endpoint, {
