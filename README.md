@@ -24,12 +24,33 @@ If you previously installed `guck-cli`, switch to `@guckdev/cli`.
 
 ## Quick start
 
-```sh
-guck init
-guck wrap --service debate-room --session room-123 -- pnpm run dev
-# in another terminal
-guck mcp
+1) Configure MCP (Codex/Claude/Copilot):
+
+```json
+{
+  "mcpServers": {
+    "guck": {
+      "command": "guck",
+      "args": ["mcp"],
+      "env": {
+        "GUCK_CONFIG_PATH": "/path/to/.guck.json"
+      }
+    }
+  }
+}
 ```
+
+2) Drop‑in log capture (JS) — use auto‑capture, emit(), or both:
+
+```ts
+import "@guckdev/sdk/auto";
+import { emit } from "@guckdev/sdk";
+
+emit({ message: "hello from app" });
+```
+
+3) Run your app; the MCP client will spawn `guck mcp` and logs are queryable via
+`guck.stats` / `guck.search`.
 
 ## Monorepo layout
 
