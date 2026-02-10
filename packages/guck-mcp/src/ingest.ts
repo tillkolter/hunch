@@ -88,6 +88,7 @@ const readBody = async (
   return await new Promise((resolve) => {
     const chunks: Buffer[] = [];
     let size = 0;
+    let tooLarge = false;
     let settled = false;
 
     const finish = (result: { ok: true; data: string } | { ok: false; error: "too_large" } | { ok: false; error: "aborted" }) => {
@@ -104,17 +105,21 @@ const readBody = async (
       }
       size += chunk.length;
       if (size > maxBodyBytes) {
-        finish({ ok: false, error: "too_large" });
-        req.destroy();
-        return;
+        tooLarge = true;
       }
-      chunks.push(Buffer.from(chunk));
+      if (!tooLarge) {
+        chunks.push(Buffer.from(chunk));
+      }
     });
 
     req.on("aborted", () => finish({ ok: false, error: "aborted" }));
     req.on("error", () => finish({ ok: false, error: "aborted" }));
     req.on("end", () => {
       if (settled) {
+        return;
+      }
+      if (tooLarge) {
+        finish({ ok: false, error: "too_large" });
         return;
       }
       finish({ ok: true, data: Buffer.concat(chunks).toString("utf8") });
