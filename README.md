@@ -126,6 +126,24 @@ guck wrap --service my-service --session dev-1 -- <your command>
 guck mcp
 ```
 
+## Session vs trace
+
+Guck supports both `session_id` and `trace_id`, but they serve different purposes:
+
+- `trace_id` is **request-scope** correlation (a single transaction across services).
+- `session_id` is **run-scope** correlation (a dev run, test run, or local experiment).
+
+`session_id` is useful even when you already have traces because many events are
+not tied to a trace (startup, background jobs, cron tasks, etc.). It also gives
+you a simple way to filter a whole dev run without wiring trace propagation.
+
+Example:
+
+```sh
+export GUCK_SESSION_ID=dev-2026-02-10
+guck wrap --service api --session dev-2026-02-10 -- pnpm run dev
+```
+
 ## Config
 
 Guck reads `.guck.json` from your repo root.
