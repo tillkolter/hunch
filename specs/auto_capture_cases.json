@@ -2,7 +2,6 @@
   {
     "name": "captures stdout lines",
     "config": {
-      "store_dir": "logs/guck",
       "default_service": "guck-test",
       "sdk": {
         "enabled": true,
@@ -32,7 +31,6 @@
   {
     "name": "captures stderr lines",
     "config": {
-      "store_dir": "logs/guck",
       "default_service": "guck-test",
       "sdk": {
         "enabled": true,
@@ -62,7 +60,6 @@
   {
     "name": "disabled sdk capture",
     "config": {
-      "store_dir": "logs/guck",
       "default_service": "guck-test",
       "sdk": {
         "enabled": false,

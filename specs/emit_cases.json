@@ -7,7 +7,6 @@
     "config": {
       "version": 1,
       "enabled": true,
-      "store_dir": "logs/guck",
       "default_service": "svc-default",
       "redaction": {
         "enabled": true,
@@ -39,7 +38,6 @@
     "config": {
       "version": 1,
       "enabled": true,
-      "store_dir": "logs/guck",
       "default_service": "svc-default",
       "redaction": {
         "enabled": true,
@@ -76,7 +74,6 @@
     "config": {
       "version": 1,
       "enabled": true,
-      "store_dir": "logs/guck",
       "default_service": "cfg-service",
       "redaction": {
         "enabled": true,
@@ -110,7 +107,6 @@
     "config": {
       "version": 1,
       "enabled": true,
-      "store_dir": "logs/guck",
       "default_service": "svc-default",
       "redaction": {
         "enabled": true,
@@ -160,7 +156,6 @@
     "config": {
       "version": 1,
       "enabled": false,
-      "store_dir": "logs/guck",
       "default_service": "svc-default",
       "redaction": {
         "enabled": true,
@@ -180,12 +175,12 @@
   {
     "name": "store-dir-override",
     "env": {
-      "GUCK_RUN_ID": "run-666"
+      "GUCK_RUN_ID": "run-666",
+      "GUCK_DIR": "/tmp/guck-custom-store"
     },
     "config": {
       "version": 1,
       "enabled": true,
-      "store_dir": "custom-store",
       "default_service": "svc-default",
       "redaction": {
         "enabled": true,
@@ -210,6 +205,6 @@
     },
     "expect_missing": ["session_id", "data", "tags", "trace_id", "span_id"],
     "expect_regex": { "id": "uuid", "ts": "iso" },
-    "expect_store_dir": "custom-store"
+    "expect_store_dir": "/tmp/guck-custom-store"
   }
 ]

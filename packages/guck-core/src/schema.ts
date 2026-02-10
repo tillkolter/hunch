@@ -35,7 +35,6 @@ export type GuckEvent = {
 export type GuckConfig = {
   version: 1;
   enabled: boolean;
-  store_dir: string;
   default_service: string;
   sdk: GuckSdkConfig;
   read?: GuckReadConfig;
@@ -47,17 +46,9 @@ export type GuckConfig = {
   mcp: GuckMcpConfig;
 };
 
-export type GuckMcpHttpConfig = {
-  port?: number;
-  host?: string;
-  path?: string;
-  max_body_bytes?: number;
-};
-
 export type GuckMcpConfig = {
   max_results: number;
   default_lookback_ms: number;
-  http?: GuckMcpHttpConfig;
 };
 
 export type GuckReadBackendType = "local" | "cloudwatch" | "k8s";

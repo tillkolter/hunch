@@ -13,11 +13,11 @@ const writeConfig = (configPath, config) => {
 test("loadConfig accepts a directory config_path", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "guck-config-dir-"));
   const configPath = path.join(tempDir, ".guck.json");
-  writeConfig(configPath, { store_dir: "logs/guck" });
+  writeConfig(configPath, {});
 
   const { rootDir, config } = loadConfig({ configPath: tempDir });
   assert.equal(rootDir, tempDir);
-  assert.equal(resolveStoreDir(config, rootDir), path.join(tempDir, "logs/guck"));
+  assert.equal(resolveStoreDir(config, rootDir), path.join(os.homedir(), ".guck", "logs"));
 });
 
 test("loadConfig resolves relative config_path against cwd", () => {
@@ -25,12 +25,12 @@ test("loadConfig resolves relative config_path against cwd", () => {
   const configDir = path.join(tempDir, "config");
   fs.mkdirSync(configDir);
   const configPath = path.join(configDir, ".guck.json");
-  writeConfig(configPath, { store_dir: "logs/guck" });
+  writeConfig(configPath, {});
 
   const { rootDir, config } = loadConfig({
     cwd: tempDir,
     configPath: "config/.guck.json",
   });
   assert.equal(rootDir, configDir);
-  assert.equal(resolveStoreDir(config, rootDir), path.join(configDir, "logs/guck"));
+  assert.equal(resolveStoreDir(config, rootDir), path.join(os.homedir(), ".guck", "logs"));
 });

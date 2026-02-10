@@ -1,7 +1,7 @@
 # @guckdev/vite
 
-Vite dev server plugin that proxies `/guck/emit` to a shared Guck MCP ingest
-endpoint and injects the project config server-side.
+Vite dev server plugin that accepts `/guck/emit` and writes events directly to
+Guck’s local log store.
 
 ## Install
 
@@ -26,7 +26,6 @@ Then point the browser SDK at `/guck/emit`.
 
 ```ts
 guckVitePlugin({
-  ingestUrl: "http://127.0.0.1:7331/guck/emit", // shared MCP ingest
   configPath: "/absolute/path/or/project/root", // defaults to process.cwd()
   path: "/guck/emit", // local Vite endpoint
   enabled: true, // auto-disabled for non-dev
@@ -35,5 +34,5 @@ guckVitePlugin({
 
 Notes:
 - This plugin only runs in Vite dev server mode (`apply: "serve"`).
-- The project config path is injected as a header on the server side.
 - CORS preflight is handled for browser requests.
+- The log directory is controlled by the server env (`GUCK_DIR`) or the default `~/.guck/logs`.

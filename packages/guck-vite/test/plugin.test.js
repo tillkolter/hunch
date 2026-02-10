@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -11,29 +10,6 @@ const createTempRoot = () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "guck-vite-"));
   fs.writeFileSync(path.join(root, "index.html"), "<!doctype html>\n");
   return root;
-};
-
-const startUpstream = async () => {
-  const requests = [];
-  const server = http.createServer((req, res) => {
-    const chunks = [];
-    req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-    req.on("end", () => {
-      requests.push({
-        method: req.method,
-        headers: req.headers,
-        body: Buffer.concat(chunks).toString("utf8"),
-      });
-      res.statusCode = 200;
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ ok: true }));
-    });
-  });
-
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  const port = typeof address === "object" && address ? address.port : 0;
-  return { server, port, requests };
 };
 
 const startVite = async (plugin, rootOverride) => {
@@ -49,106 +25,123 @@ const startVite = async (plugin, rootOverride) => {
   return { server, port, root };
 };
 
-test("forwards to ingest with config header", async (t) => {
-  const upstream = await startUpstream();
-  t.after(() => upstream.server.close());
+const collectJsonlFiles = (dir) => {
+  const results = [];
+  if (!fs.existsSync(dir)) {
+    return results;
+  }
+  const stack = [dir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+        results.push(fullPath);
+      }
+    }
+  }
+  return results;
+};
 
-  const configPath = "/tmp/project-config";
-  const vite = await startVite(
-    guckVitePlugin({
-      ingestUrl: `http://127.0.0.1:${upstream.port}/guck/emit`,
-      configPath,
-      path: "/guck/emit",
-    }),
-  );
-  t.after(() => vite.server.close());
+const withEnv = (vars, fn) => {
+  const previous = {};
+  for (const key of Object.keys(vars)) {
+    previous[key] = process.env[key];
+    process.env[key] = vars[key];
+  }
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      for (const key of Object.keys(vars)) {
+        if (previous[key] === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = previous[key];
+        }
+      }
+    });
+};
 
-  const response = await fetch(`http://127.0.0.1:${vite.port}/guck/emit`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message: "hello" }),
-  });
-
-  assert.equal(response.status, 200);
-  const postRequests = upstream.requests.filter((request) => request.method === "POST");
-  assert.equal(postRequests.length, 1);
-  const request = upstream.requests[0];
-  assert.equal(request.headers["x-guck-config-path"], configPath);
-  assert.ok(request.body.includes("hello"));
-});
-
-test("handles CORS preflight", async (t) => {
-  const upstream = await startUpstream();
-  t.after(() => upstream.server.close());
-
-  const vite = await startVite(
-    guckVitePlugin({
-      ingestUrl: `http://127.0.0.1:${upstream.port}/guck/emit`,
-    }),
-  );
-  t.after(() => vite.server.close());
-
-  const response = await fetch(`http://127.0.0.1:${vite.port}/guck/emit`, {
-    method: "OPTIONS",
-  });
-
-  assert.equal(response.status, 204);
-  assert.equal(response.headers.get("access-control-allow-origin"), "*");
-});
-
-test("returns 502 when upstream is down", async (t) => {
-  const vite = await startVite(
-    guckVitePlugin({
-      ingestUrl: "http://127.0.0.1:59999/guck/emit",
-    }),
-  );
-  t.after(() => vite.server.close());
-
-  const response = await fetch(`http://127.0.0.1:${vite.port}/guck/emit`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message: "hello" }),
-  });
-
-  assert.equal(response.status, 502);
-  const payload = await response.json();
-  assert.equal(payload.error, "Upstream unreachable");
-});
-
-test("auto-discovers ingest via registry", async (t) => {
-  const upstream = await startUpstream();
-  t.after(() => upstream.server.close());
-
+test("writes events to the store dir", async (t) => {
   const root = createTempRoot();
-  fs.mkdirSync(path.join(root, ".git"));
-  const registryDir = fs.mkdtempSync(path.join(os.tmpdir(), "guck-registry-"));
-  const registryEntry = {
-    version: 1,
-    pid: process.pid,
-    root_dir: root,
-    host: "127.0.0.1",
-    path: "/guck/emit",
-    port: upstream.port,
-    started_at: new Date().toISOString(),
-  };
-  fs.writeFileSync(path.join(registryDir, "entry.json"), JSON.stringify(registryEntry));
-
-  const vite = await startVite(
-    guckVitePlugin({
-      configPath: root,
-      registryDir,
-    }),
-    root,
+  const configPath = path.join(root, ".guck.json");
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify(
+      {
+        enabled: true,
+        default_service: "web-ui",
+        sdk: { enabled: true, capture_stdout: true, capture_stderr: true },
+      },
+      null,
+      2,
+    ),
   );
-  t.after(() => vite.server.close());
+  const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), "guck-store-"));
 
-  const response = await fetch(`http://127.0.0.1:${vite.port}/guck/emit`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message: "hello" }),
+  await withEnv({ GUCK_DIR: storeDir }, async () => {
+    const vite = await startVite(guckVitePlugin({ configPath: root }), root);
+    t.after(() => vite.server.close());
+
+    const response = await fetch(`http://127.0.0.1:${vite.port}/guck/emit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: "hello" }),
+    });
+
+    assert.equal(response.status, 200);
+
+    const files = collectJsonlFiles(storeDir);
+    assert.equal(files.length, 1, "expected one JSONL file");
+    const content = fs.readFileSync(files[0], "utf8").trim();
+    const event = JSON.parse(content.split(/\r?\n/)[0]);
+    assert.equal(event.message, "hello");
+    assert.equal(event.service, "web-ui");
+    assert.equal(typeof event.run_id, "string");
   });
+});
 
-  assert.equal(response.status, 200);
-  const postRequests = upstream.requests.filter((request) => request.method === "POST");
-  assert.equal(postRequests.length, 1);
+test("returns 400 for invalid JSON", async (t) => {
+  const root = createTempRoot();
+  fs.writeFileSync(path.join(root, ".guck.json"), JSON.stringify({ enabled: true }, null, 2));
+  const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), "guck-store-"));
+
+  await withEnv({ GUCK_DIR: storeDir }, async () => {
+    const vite = await startVite(guckVitePlugin({ configPath: root }), root);
+    t.after(() => vite.server.close());
+
+    const response = await fetch(`http://127.0.0.1:${vite.port}/guck/emit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{not-json}",
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload.error, "Invalid JSON");
+  });
+});
+
+test("returns 403 when disabled", async (t) => {
+  const root = createTempRoot();
+  fs.writeFileSync(path.join(root, ".guck.json"), JSON.stringify({ enabled: false }, null, 2));
+  const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), "guck-store-"));
+
+  await withEnv({ GUCK_DIR: storeDir }, async () => {
+    const vite = await startVite(guckVitePlugin({ configPath: root }), root);
+    t.after(() => vite.server.close());
+
+    const response = await fetch(`http://127.0.0.1:${vite.port}/guck/emit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: "hello" }),
+    });
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload.error, "Guck disabled");
+  });
 });

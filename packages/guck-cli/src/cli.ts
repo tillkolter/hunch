@@ -14,11 +14,11 @@ import {
 } from "@guckdev/core";
 import { GuckEvent, GuckLevel } from "@guckdev/core";
 import { emit } from "@guckdev/sdk";
-import { startMcpServer, type HttpIngestConfig } from "@guckdev/mcp";
+import { startMcpServer } from "@guckdev/mcp";
 
 const printHelp = (): void => {
   console.log(
-    `Guck - MCP-first telemetry\n\nCommands:\n  init                 Create .guck.json and .guck.local.json\n  checkpoint           Write a .guck-checkpoint epoch timestamp\n  wrap --service <s> --session <id> -- <cmd...>\n                       Capture stdout/stderr and write JSONL\n  emit --service <s> --session <id>\n                       Read JSON events from stdin and append\n  mcp [--http-port <n|auto> --http-host <h> --http-path <p> --http-max-body-bytes <n>]\n                       Start MCP server (optional HTTP ingest)\n  upgrade              Update the @guckdev/cli install\n\nOptions:\n  --version, -v        Print version\n`,
+    `Guck - MCP-first telemetry\n\nCommands:\n  init                 Create .guck.json and .guck.local.json\n  checkpoint           Write a .guck-checkpoint epoch timestamp\n  wrap --service <s> --session <id> -- <cmd...>\n                       Capture stdout/stderr and write JSONL\n  emit --service <s> --session <id>\n                       Read JSON events from stdin and append\n  mcp                  Start MCP server\n  upgrade              Update the @guckdev/cli install\n\nOptions:\n  --version, -v        Print version\n`,
   );
 };
 
@@ -134,25 +134,6 @@ const parseArgs = (argv: string[]) => {
     rest.push(next);
   }
   return { opts, rest };
-};
-
-const parsePositiveInt = (value: string, label: string): number => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`Invalid ${label}: ${value}`);
-  }
-  return parsed;
-};
-
-const parsePort = (value: string, label: string): number => {
-  if (value === "auto") {
-    return 0;
-  }
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
-    throw new Error(`Invalid ${label}: ${value}`);
-  }
-  return parsed;
 };
 
 const writeInitFiles = (rootDir: string): void => {
@@ -392,26 +373,7 @@ const main = async (): Promise<void> => {
   }
 
   if (command === "mcp") {
-    const { opts } = parseArgs(argv.slice(1));
-    const http: HttpIngestConfig = {};
-    if (opts["http-port"]) {
-      const port = parsePort(opts["http-port"], "http-port");
-      if (port > 65535) {
-        throw new Error(`Invalid http-port: ${opts["http-port"]}`);
-      }
-      http.port = port;
-    }
-    if (opts["http-host"]) {
-      http.host = opts["http-host"];
-    }
-    if (opts["http-path"]) {
-      http.path = opts["http-path"];
-    }
-    if (opts["http-max-body-bytes"]) {
-      http.max_body_bytes = parsePositiveInt(opts["http-max-body-bytes"], "http-max-body-bytes");
-    }
-    const hasHttpOverrides = Object.keys(http).length > 0;
-    await startMcpServer(hasHttpOverrides ? { http } : undefined);
+    await startMcpServer();
     return;
   }
 

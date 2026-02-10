@@ -4,8 +4,8 @@ from pathlib import Path
 from guck.config import load_config, resolve_store_dir
 
 
-def _write_config(path: Path, store_dir: str = "logs/guck") -> None:
-    path.write_text(json.dumps({"store_dir": store_dir}, indent=2), encoding="utf-8")
+def _write_config(path: Path) -> None:
+    path.write_text(json.dumps({}, indent=2), encoding="utf-8")
 
 
 def test_load_config_directory_path(tmp_path, monkeypatch):
@@ -21,7 +21,7 @@ def test_load_config_directory_path(tmp_path, monkeypatch):
     result = load_config(config_path=str(config_dir))
     assert result["root_dir"] == str(config_dir)
     assert resolve_store_dir(result["config"], result["root_dir"]) == str(
-        config_dir / "logs/guck"
+        Path.home() / ".guck" / "logs"
     )
 
 
@@ -39,5 +39,5 @@ def test_load_config_relative_path_uses_cwd(tmp_path, monkeypatch):
     result = load_config(cwd=str(base_dir), config_path="config/.guck.json")
     assert result["root_dir"] == str(config_dir)
     assert resolve_store_dir(result["config"], result["root_dir"]) == str(
-        config_dir / "logs/guck"
+        Path.home() / ".guck" / "logs"
     )

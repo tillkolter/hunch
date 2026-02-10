@@ -68,16 +68,19 @@ def test_emit_contract(test_case, tmp_path, monkeypatch):
     for key, value in test_case.get("env", {}).items():
         monkeypatch.setenv(key, value)
     monkeypatch.setenv("GUCK_CONFIG_PATH", str(config_path))
+    if "GUCK_DIR" not in test_case.get("env", {}):
+        monkeypatch.setenv("GUCK_DIR", str(tmp_path / "store"))
 
     emit_module = importlib.import_module("guck.emit")
     importlib.reload(emit_module)
     emit_module.emit(test_case.get("input", {}))
 
-    store_dir_value = test_case.get("expect_store_dir") or test_case["config"]["store_dir"]
-    if os.path.isabs(store_dir_value):
-        store_dir = Path(store_dir_value)
-    else:
-        store_dir = Path(config_path).parent / store_dir_value
+    store_dir_value = (
+        test_case.get("expect_store_dir")
+        or os.environ.get("GUCK_DIR")
+        or str(Path.home() / ".guck" / "logs")
+    )
+    store_dir = Path(store_dir_value)
 
     if test_case.get("expect_no_write"):
         files = _collect_jsonl_files(store_dir)

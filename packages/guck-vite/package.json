@@ -1,7 +1,7 @@
 {
   "name": "@guckdev/vite",
   "version": "0.1.0",
-  "description": "Vite plugin for Guck browser ingest",
+  "description": "Vite plugin for Guck browser logging",
   "repository": {
     "type": "git",
     "url": "https://github.com/tillkolter/guck-mcp"
@@ -33,6 +33,9 @@
   },
   "peerDependencies": {
     "vite": "^5.0.0 || ^6.0.0"
+  },
+  "dependencies": {
+    "@guckdev/core": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "25.2.2",

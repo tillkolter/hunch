@@ -10,7 +10,6 @@ from .schema import GuckConfig
 DEFAULT_CONFIG: GuckConfig = {
     "version": 1,
     "enabled": True,
-    "store_dir": "logs/guck",
     "default_service": "guck",
     "sdk": {
         "enabled": True,
@@ -27,6 +26,8 @@ DEFAULT_CONFIG: GuckConfig = {
         "default_lookback_ms": 300000,
     },
 }
+
+DEFAULT_STORE_DIR = str(Path.home() / ".guck" / "logs")
 
 
 class LoadedConfig(TypedDict):
@@ -65,6 +66,9 @@ def find_repo_root(start_dir: str) -> str:
 
 
 def _merge_config(base: GuckConfig, override: Dict[str, Any]) -> GuckConfig:
+    override = {k: v for k, v in override.items() if k != "store_dir"}
+    mcp_override = dict(override.get("mcp") or {})
+    mcp_override.pop("http", None)
     merged: GuckConfig = {
         **base,
         **override,
@@ -78,7 +82,7 @@ def _merge_config(base: GuckConfig, override: Dict[str, Any]) -> GuckConfig:
         },
         "mcp": {
             **base["mcp"],
-            **(override.get("mcp") or {}),
+            **mcp_override,
         },
     }
     return merged
@@ -130,9 +134,6 @@ def load_config(*, cwd: Optional[str] = None, config_path: Optional[str] = None)
     if env_enabled is not None:
         config = {**config, "enabled": env_enabled}
 
-    if os.environ.get("GUCK_DIR"):
-        config = {**config, "store_dir": os.environ["GUCK_DIR"]}
-
     if os.environ.get("GUCK_SERVICE"):
         config = {**config, "default_service": os.environ["GUCK_SERVICE"]}
 
@@ -144,11 +145,8 @@ def load_config(*, cwd: Optional[str] = None, config_path: Optional[str] = None)
     }
 
 
-def resolve_store_dir(config: GuckConfig, root_dir: str) -> str:
-    store_dir = config["store_dir"]
-    if Path(store_dir).is_absolute():
-        return store_dir
-    return str(Path(root_dir) / store_dir)
+def resolve_store_dir(_config: GuckConfig, _root_dir: str) -> str:
+    return os.environ.get("GUCK_DIR") or DEFAULT_STORE_DIR
 
 
 def get_default_config() -> GuckConfig:

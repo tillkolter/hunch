@@ -78,11 +78,13 @@ for (const testCase of cases) {
     const casePath = path.join(tempDir, "case.json");
     fs.writeFileSync(casePath, JSON.stringify(testCase, null, 2));
 
+    const defaultStoreDir = path.join(tempDir, "store");
     const env = {
       ...process.env,
-      ...testCase.env,
       GUCK_CONFIG_PATH: configPath,
       GUCK_CASE_PATH: casePath,
+      GUCK_DIR: defaultStoreDir,
+      ...testCase.env,
     };
 
     const result = spawnSync(process.execPath, [workerPath], {
@@ -92,9 +94,11 @@ for (const testCase of cases) {
 
     assert.equal(result.status, 0, "worker should exit cleanly");
 
-    const storeDir = path.isAbsolute(testCase.expect_store_dir || testCase.config.store_dir)
-      ? testCase.expect_store_dir || testCase.config.store_dir
-      : path.join(path.dirname(configPath), testCase.expect_store_dir || testCase.config.store_dir);
+    const configuredStore =
+      testCase.expect_store_dir || env.GUCK_DIR || path.join(os.homedir(), ".guck", "logs");
+    const storeDir = path.isAbsolute(configuredStore)
+      ? configuredStore
+      : path.join(path.dirname(configPath), configuredStore);
 
     if (testCase.expect_no_write) {
       const files = collectJsonlFiles(storeDir);

@@ -1,11 +1,11 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { GuckConfig } from "./schema.js";
 
 const DEFAULT_CONFIG: GuckConfig = {
   version: 1,
   enabled: true,
-  store_dir: "logs/guck",
   default_service: "guck",
   sdk: {
     enabled: true,
@@ -23,13 +23,10 @@ const DEFAULT_CONFIG: GuckConfig = {
   mcp: {
     max_results: 200,
     default_lookback_ms: 300000,
-    http: {
-      host: "127.0.0.1",
-      path: "/guck/emit",
-      max_body_bytes: 512000,
-    },
   },
 };
+
+const DEFAULT_STORE_DIR = path.join(os.homedir(), ".guck", "logs");
 
 export type LoadedConfig = {
   rootDir: string;
@@ -89,26 +86,27 @@ const mergeSdkConfig = (
 };
 
 const mergeConfig = (base: GuckConfig, override: Partial<GuckConfig>): GuckConfig => {
+  const { store_dir: _ignored, ...overrideRest } =
+    override as Partial<GuckConfig> & { store_dir?: string };
   const mergedMcp = {
     ...base.mcp,
-    ...(override.mcp ?? {}),
-    http: {
-      ...(base.mcp.http ?? {}),
-      ...(override.mcp?.http ?? {}),
-    },
-  };
+    ...(overrideRest.mcp ?? {}),
+  } as GuckConfig["mcp"] & { http?: unknown };
+  if ("http" in mergedMcp) {
+    delete mergedMcp.http;
+  }
   return {
     ...base,
-    ...override,
+    ...overrideRest,
     sdk: mergeSdkConfig(base.sdk, override.sdk),
     read: {
       ...(base.read ?? { backend: "local" }),
-      ...(override.read ?? {}),
-      backends: override.read?.backends ?? base.read?.backends,
+      ...(overrideRest.read ?? {}),
+      backends: overrideRest.read?.backends ?? base.read?.backends,
     },
     redaction: {
       ...base.redaction,
-      ...(override.redaction ?? {}),
+      ...(overrideRest.redaction ?? {}),
     },
     mcp: mergedMcp,
   };
@@ -170,10 +168,6 @@ export const loadConfig = (options: LoadConfigOptions = {}): LoadedConfig => {
     config = { ...config, enabled: envEnabled };
   }
 
-  if (process.env.GUCK_DIR) {
-    config = { ...config, store_dir: process.env.GUCK_DIR };
-  }
-
   if (process.env.GUCK_SERVICE) {
     config = { ...config, default_service: process.env.GUCK_SERVICE };
   }
@@ -186,11 +180,8 @@ export const loadConfig = (options: LoadConfigOptions = {}): LoadedConfig => {
   };
 };
 
-export const resolveStoreDir = (config: GuckConfig, rootDir: string): string => {
-  if (path.isAbsolute(config.store_dir)) {
-    return config.store_dir;
-  }
-  return path.join(rootDir, config.store_dir);
+export const resolveStoreDir = (_config: GuckConfig, _rootDir: string): string => {
+  return process.env.GUCK_DIR ?? DEFAULT_STORE_DIR;
 };
 
 export const resolveCheckpointPath = (storeDir: string): string => {

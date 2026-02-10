@@ -1,4 +1,5 @@
 export * from "./config.js";
+export * from "./event.js";
 export * from "./format.js";
 export * from "./redact.js";
 export * from "./schema.js";

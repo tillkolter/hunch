@@ -54,6 +54,8 @@ def test_auto_capture_contract(test_case, tmp_path, monkeypatch):
         monkeypatch.setenv(key, value)
     monkeypatch.delenv("GUCK_WRAPPED", raising=False)
     monkeypatch.setenv("GUCK_CONFIG_PATH", str(config_path))
+    if "GUCK_DIR" not in test_case.get("env", {}):
+        monkeypatch.setenv("GUCK_DIR", str(tmp_path / "store"))
 
     emit_module = importlib.import_module("guck.emit")
     importlib.reload(emit_module)
@@ -68,11 +70,8 @@ def test_auto_capture_contract(test_case, tmp_path, monkeypatch):
 
     handle.stop()
 
-    store_dir_value = test_case["config"].get("store_dir", "logs/guck")
-    if os.path.isabs(store_dir_value):
-        store_dir = Path(store_dir_value)
-    else:
-        store_dir = Path(config_path).parent / store_dir_value
+    store_dir_value = os.environ.get("GUCK_DIR") or str(Path.home() / ".guck" / "logs")
+    store_dir = Path(store_dir_value)
 
     files = _collect_jsonl_files(store_dir)
 

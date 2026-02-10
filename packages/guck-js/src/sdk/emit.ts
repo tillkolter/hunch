@@ -1,8 +1,7 @@
-import { randomUUID } from "node:crypto";
 import {
   appendEvent,
+  buildEvent,
   GuckEvent,
-  GuckLevel,
   loadConfig,
   redactEvent,
   resolveStoreDir,
@@ -34,48 +33,6 @@ const warnOnce = (message: string): void => {
   process.stderr.write(`${message}\n`);
 };
 
-const defaultRunId = process.env.GUCK_RUN_ID ?? randomUUID();
-const defaultSessionId = process.env.GUCK_SESSION_ID;
-
-const normalizeLevel = (level?: string): GuckLevel => {
-  if (!level) {
-    return "info";
-  }
-  const lower = level.toLowerCase();
-  if (
-    lower === "trace" ||
-    lower === "debug" ||
-    lower === "info" ||
-    lower === "warn" ||
-    lower === "error" ||
-    lower === "fatal"
-  ) {
-    return lower;
-  }
-  return "info";
-};
-
-const toEvent = (
-  input: Partial<GuckEvent>,
-  defaults: { service: string },
-): GuckEvent => {
-  return {
-    id: input.id ?? randomUUID(),
-    ts: input.ts ?? new Date().toISOString(),
-    level: normalizeLevel(input.level),
-    type: input.type ?? "log",
-    service: input.service ?? defaults.service,
-    run_id: input.run_id ?? defaultRunId,
-    session_id: input.session_id ?? defaultSessionId,
-    message: input.message,
-    data: input.data,
-    tags: input.tags,
-    trace_id: input.trace_id,
-    span_id: input.span_id,
-    source: input.source ?? { kind: "sdk" },
-  };
-};
-
 const getCached = () => {
   if (cached) {
     return cached;
@@ -94,7 +51,7 @@ export const emit = async (input: Partial<GuckEvent>): Promise<void> => {
   if (!config.enabled) {
     return;
   }
-  const event = toEvent(input, { service: config.default_service });
+  const event = buildEvent(input, { service: config.default_service });
   const redacted = redactEvent(config, event);
   try {
     await appendEvent(storeDir, redacted);

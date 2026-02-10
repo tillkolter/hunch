@@ -92,7 +92,6 @@ test("respects sdk.enabled=false in config", () => {
     JSON.stringify(
       {
         enabled: true,
-        store_dir: storeDir,
         default_service: service,
         sdk: { enabled: false },
       },
@@ -114,6 +113,7 @@ test("respects sdk.enabled=false in config", () => {
       GUCK_CONFIG_PATH: configPath,
       GUCK_SERVICE: service,
       GUCK_RUN_ID: runId,
+      GUCK_DIR: storeDir,
     },
   );
 

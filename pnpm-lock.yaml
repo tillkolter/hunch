@@ -96,6 +96,10 @@ importers:
         version: 25.2.2
 
   packages/guck-vite:
+    dependencies:
+      '@guckdev/core':
+        specifier: workspace:*
+        version: link:../guck-core
     devDependencies:
       '@types/node':
         specifier: 25.2.2
