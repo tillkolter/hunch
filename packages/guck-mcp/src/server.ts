@@ -97,12 +97,17 @@ const SEARCH_SCHEMA = {
       type: "array",
       items: { type: "string" },
       description:
-        "JSON projection of event fields to return. Allowed fields: id, ts, level, type, service, run_id, session_id, message, data, tags, trace_id, span_id, source.",
+        "JSON projection of event fields to return. Allowed fields: id, ts, level, type, service, run_id, session_id, message, data, tags, trace_id, span_id, source. Dotted paths like data.rawPeak are supported (top-level segment must be allowed; arrays not supported).",
+    },
+    flatten: {
+      type: "boolean",
+      description:
+        "When true, dotted field paths are emitted as top-level keys (e.g. \"data.rawPeak\": 43). Defaults to false.",
     },
     template: {
       type: "string",
       description:
-        "Text format template when format is \"text\". Tokens like {ts}, {level}, {service}, {message} are replaced; unknown tokens become empty. Example: \"{ts}|{service}|{message}\".",
+        "Text format template when format is \"text\". Tokens like {ts}, {level}, {service}, {message} are replaced; dotted tokens like {data.rawPeak} are supported; unknown tokens become empty. Example: \"{ts}|{service}|{message}\".",
     },
     backends: {
       type: "array",
@@ -173,6 +178,11 @@ const TAIL_SCHEMA = {
     },
     format: { type: "string", enum: ["json", "text"] },
     fields: { type: "array", items: { type: "string" } },
+    flatten: {
+      type: "boolean",
+      description:
+        "When true, dotted field paths are emitted as top-level keys (e.g. \"data.rawPeak\": 43). Defaults to false.",
+    },
     template: { type: "string" },
     backends: { type: "array", items: { type: "string" } },
     config_path: { type: "string" },
@@ -427,7 +437,9 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
           });
         }
         if (input.fields && input.fields.length > 0) {
-          const projected = trimmed.map((event) => projectEventFields(event, input.fields ?? []));
+          const projected = trimmed.map((event) =>
+            projectEventFields(event, input.fields ?? [], { flatten: input.flatten }),
+          );
           const limited = limitPayloadItems(
             projected,
             maxOutputChars,
@@ -554,7 +566,9 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
         });
       }
       if (input.fields && input.fields.length > 0) {
-        const projected = trimmed.map((event) => projectEventFields(event, input.fields ?? []));
+        const projected = trimmed.map((event) =>
+          projectEventFields(event, input.fields ?? [], { flatten: input.flatten }),
+        );
         const limited = limitPayloadItems(
           projected,
           maxOutputChars,

@@ -16,6 +16,60 @@ const ALLOWED_FIELDS = new Set([
   "source",
 ]);
 
+type ProjectionOptions = {
+  flatten?: boolean;
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+};
+
+const splitPath = (path: string): string[] | null => {
+  if (!path) {
+    return null;
+  }
+  const parts = path.split(".");
+  if (parts.some((part) => part.length === 0)) {
+    return null;
+  }
+  return parts;
+};
+
+const getValueAtPath = (value: unknown, path: string[]): unknown => {
+  let current: unknown = value;
+  for (const segment of path) {
+    if (!isPlainObject(current)) {
+      return undefined;
+    }
+    if (!Object.prototype.hasOwnProperty.call(current, segment)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+};
+
+const setValueAtPath = (
+  target: Record<string, unknown>,
+  path: string[],
+  value: unknown,
+): void => {
+  let current: Record<string, unknown> = target;
+  for (let index = 0; index < path.length; index += 1) {
+    const segment = path[index];
+    const isLast = index === path.length - 1;
+    if (isLast) {
+      current[segment] = value;
+      return;
+    }
+    const next = current[segment];
+    if (!isPlainObject(next)) {
+      current[segment] = {};
+    }
+    current = current[segment] as Record<string, unknown>;
+  }
+};
+
 const stringifyValue = (value: unknown): string => {
   if (value === undefined || value === null) {
     return "";
@@ -59,23 +113,42 @@ export const truncateEventMessage = (
 export const projectEventFields = (
   event: GuckEvent,
   fields: string[],
+  options: ProjectionOptions = {},
 ): Record<string, unknown> => {
   const projected: Record<string, unknown> = {};
   for (const field of fields) {
-    if (!ALLOWED_FIELDS.has(field)) {
+    const path = splitPath(field);
+    if (!path || path.length === 0) {
       continue;
     }
-    projected[field] = (event as Record<string, unknown>)[field];
+    const [topLevel] = path;
+    if (!ALLOWED_FIELDS.has(topLevel)) {
+      continue;
+    }
+    const value = getValueAtPath(event as Record<string, unknown>, path);
+    if (value === undefined) {
+      continue;
+    }
+    if (options.flatten) {
+      projected[field] = value;
+      continue;
+    }
+    setValueAtPath(projected, path, value);
   }
   return projected;
 };
 
 const applyTemplate = (event: GuckEvent, template: string): string => {
-  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, token) => {
-    if (!ALLOWED_FIELDS.has(token)) {
+  return template.replace(/\{([a-zA-Z0-9_.]+)\}/g, (_match, token) => {
+    const path = splitPath(token);
+    if (!path || path.length === 0) {
       return "";
     }
-    const value = (event as Record<string, unknown>)[token];
+    const [topLevel] = path;
+    if (!ALLOWED_FIELDS.has(topLevel)) {
+      return "";
+    }
+    const value = getValueAtPath(event as Record<string, unknown>, path);
     return stringifyValue(value);
   });
 };

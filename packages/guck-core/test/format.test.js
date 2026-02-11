@@ -30,6 +30,23 @@ test("projectEventFields empty fields", () => {
   assert.deepEqual(projected, {});
 });
 
+test("projectEventFields dotted paths nested", () => {
+  const projected = projectEventFields(baseEvent, ["ts", "data.stage", "tags.env"]);
+  assert.deepEqual(projected, {
+    ts: "2026-02-09T00:00:00.000Z",
+    data: { stage: "x" },
+    tags: { env: "test" },
+  });
+});
+
+test("projectEventFields dotted paths flatten", () => {
+  const projected = projectEventFields(baseEvent, ["data.stage", "tags.env"], { flatten: true });
+  assert.deepEqual(projected, {
+    "data.stage": "x",
+    "tags.env": "test",
+  });
+});
+
 test("formatEventText default", () => {
   const text = formatEventText(baseEvent);
   assert.equal(text, "2026-02-09T00:00:00.000Z info svc log session=sess hello");
@@ -43,6 +60,11 @@ test("formatEventText default without session", () => {
 test("formatEventText template", () => {
   const text = formatEventText(baseEvent, "{ts}|{service}|{message}");
   assert.equal(text, "2026-02-09T00:00:00.000Z|svc|hello");
+});
+
+test("formatEventText template nested tokens", () => {
+  const text = formatEventText(baseEvent, "{ts}|{data.stage}|{tags.env}");
+  assert.equal(text, "2026-02-09T00:00:00.000Z|x|test");
 });
 
 test("formatEventText template missing fields and json values", () => {
