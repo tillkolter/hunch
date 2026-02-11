@@ -333,6 +333,7 @@ telemetry; filtering is MCP-first.
 
 Guck exposes these MCP tools (filter-first):
 
+- `guck.mcp_version` — MCP package name + version
 - `guck.search`
 - `guck.stats`
 - `guck.sessions`

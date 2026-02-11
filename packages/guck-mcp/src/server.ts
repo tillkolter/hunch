@@ -23,18 +23,6 @@ import {
   resolveStoreDir,
   truncateEventMessage,
 } from "@guckdev/core";
-const loadVersion = (): string => {
-  try {
-    const pkgUrl = new URL("../package.json", import.meta.url);
-    const raw = fs.readFileSync(pkgUrl, "utf8");
-    const parsed = JSON.parse(raw) as { version?: unknown };
-    return typeof parsed.version === "string" && parsed.version.trim().length > 0
-      ? parsed.version
-      : "unknown";
-  } catch {
-    return "unknown";
-  }
-};
 const SEARCH_SCHEMA = {
   type: "object",
   description:
@@ -130,6 +118,12 @@ const SEARCH_SCHEMA = {
   },
 } as const;
 
+const VERSION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {},
+} as const;
+
 const STATS_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -184,6 +178,30 @@ const TAIL_SCHEMA = {
     config_path: { type: "string" },
   },
 } as const;
+
+const DEFAULT_MCP_NAME = "@guckdev/mcp";
+const DEFAULT_MCP_VERSION = "unknown";
+
+const loadMcpPackage = (): { name: string; version: string } => {
+  try {
+    const pkgUrl = new URL("../package.json", import.meta.url);
+    const raw = fs.readFileSync(pkgUrl, "utf8");
+    const parsed = JSON.parse(raw) as { name?: unknown; version?: unknown };
+    const name =
+      typeof parsed.name === "string" && parsed.name.trim().length > 0
+        ? parsed.name
+        : DEFAULT_MCP_NAME;
+    const version =
+      typeof parsed.version === "string" && parsed.version.trim().length > 0
+        ? parsed.version
+        : DEFAULT_MCP_VERSION;
+    return { name, version };
+  } catch {
+    return { name: DEFAULT_MCP_NAME, version: DEFAULT_MCP_VERSION };
+  }
+};
+
+const MCP_PACKAGE = loadMcpPackage();
 
 const buildText = (payload: unknown) => {
   return {
@@ -305,7 +323,7 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
   const server = new Server(
     {
       name: "guck",
-      version: loadVersion(),
+      version: MCP_PACKAGE.version,
     },
     {
       capabilities: {
@@ -317,6 +335,11 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
       tools: [
+        {
+          name: "guck.mcp_version",
+          description: "Return the MCP package name and version.",
+          inputSchema: VERSION_SCHEMA,
+        },
         {
           name: "guck.search",
           description:
@@ -346,6 +369,9 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (request.params.name === "guck.mcp_version") {
+      return buildText({ name: MCP_PACKAGE.name, version: MCP_PACKAGE.version });
+    }
     const args = (request.params.arguments ?? {}) as { config_path?: string };
     const { config_path: configPath } = args;
     const { config, rootDir } = loadConfig({ configPath });
