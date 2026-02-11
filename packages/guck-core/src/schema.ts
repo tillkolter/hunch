@@ -75,6 +75,7 @@ export type GuckK8sAuthConfig = {
   cluster?: string;
   region?: string;
   profile?: string;
+  role_arn?: string;
 };
 
 export type GuckK8sReadBackendConfig = {

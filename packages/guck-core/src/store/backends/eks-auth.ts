@@ -18,6 +18,7 @@ type EksAuthOptions = {
   clusterName: string;
   region: string;
   profile?: string;
+  roleArn?: string;
   credentials?: unknown;
   expiresInSeconds?: number;
   now?: Date;
@@ -92,7 +93,14 @@ const loadHash = (): { Hash: HashCtor } => {
   }
 };
 
-const loadCredentialProviders = (): { fromIni: (input: { profile: string }) => unknown } => {
+const loadCredentialProviders = (): {
+  fromIni: (input: { profile: string }) => unknown;
+  fromTemporaryCredentials: (input: {
+    params: { RoleArn: string; RoleSessionName: string };
+    clientConfig?: { region: string };
+    masterCredentials?: unknown;
+  }) => unknown;
+} => {
   try {
     return requireModule("@aws-sdk/credential-providers");
   } catch {
@@ -102,7 +110,7 @@ const loadCredentialProviders = (): { fromIni: (input: { profile: string }) => u
   }
 };
 
-const resolveCredentials = (profile?: string, credentials?: unknown): unknown => {
+const resolveBaseCredentials = (profile?: string, credentials?: unknown): unknown => {
   if (credentials) {
     return credentials;
   }
@@ -110,6 +118,34 @@ const resolveCredentials = (profile?: string, credentials?: unknown): unknown =>
     return undefined;
   }
   return loadCredentialProviders().fromIni({ profile });
+};
+
+const resolveCredentials = (
+  profile?: string,
+  credentials?: unknown,
+  roleArn?: string,
+  region?: string,
+): unknown => {
+  const baseCredentials = resolveBaseCredentials(profile, credentials);
+  if (!roleArn) {
+    return baseCredentials;
+  }
+  const { fromTemporaryCredentials } = loadCredentialProviders();
+  const options: {
+    params: { RoleArn: string; RoleSessionName: string };
+    clientConfig?: { region: string };
+    masterCredentials?: unknown;
+  } = {
+    params: {
+      RoleArn: roleArn,
+      RoleSessionName: `guck-eks-${Date.now()}`,
+    },
+    clientConfig: region ? { region } : undefined,
+  };
+  if (baseCredentials) {
+    options.masterCredentials = baseCredentials;
+  }
+  return fromTemporaryCredentials(options);
 };
 
 const toBase64Url = (value: string): string => {
@@ -148,10 +184,15 @@ const formatUrl = (request: {
 };
 
 export const fetchEksClusterInfo = async (
-  options: Pick<EksAuthOptions, "clusterName" | "region" | "profile" | "credentials">,
+  options: Pick<EksAuthOptions, "clusterName" | "region" | "profile" | "roleArn" | "credentials">,
 ): Promise<EksClusterInfo> => {
   const { EKSClient, DescribeClusterCommand } = loadEksSdk();
-  const resolvedCredentials = resolveCredentials(options.profile, options.credentials);
+  const resolvedCredentials = resolveCredentials(
+    options.profile,
+    options.credentials,
+    options.roleArn,
+    options.region,
+  );
   const client = new EKSClient({ region: options.region, credentials: resolvedCredentials });
   const response = await client.send(new DescribeClusterCommand({ name: options.clusterName }));
   const cluster = response.cluster;
@@ -181,7 +222,12 @@ export const buildEksToken = async (options: EksAuthOptions): Promise<EksTokenRe
     }
   }
 
-  const resolvedCredentials = resolveCredentials(options.profile, options.credentials);
+  const resolvedCredentials = resolveCredentials(
+    options.profile,
+    options.credentials,
+    options.roleArn,
+    options.region,
+  );
   const { STSClient } = loadStsSdk();
   const stsClient = new STSClient({
     region: options.region,

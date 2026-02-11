@@ -401,7 +401,7 @@ const findArgValue = (args: string[], name: string): string | undefined => {
 
 const parseAwsEksExec = (
   exec?: KubeConfigUserExec,
-): { clusterName: string; region: string; profile?: string } | null => {
+): { clusterName: string; region: string; profile?: string; roleArn?: string } | null => {
   if (!exec) {
     return null;
   }
@@ -423,7 +423,8 @@ const parseAwsEksExec = (
     );
   }
   const profile = findArgValue(args, "--profile") ?? getEnvValue(exec.env, "AWS_PROFILE");
-  return { clusterName, region, profile };
+  const roleArn = findArgValue(args, "--role-arn") ?? getEnvValue(exec.env, "AWS_ROLE_ARN");
+  return { clusterName, region, profile, roleArn };
 };
 
 const buildKubeConfigWithToken = (input: {
@@ -560,19 +561,19 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
   let clientPromise: Promise<K8sClient> | null = null;
   let tokenExpiresAtMs: number | null = null;
   let cachedEksConfig:
-    | { clusterName: string; region: string; profile?: string }
+    | { clusterName: string; region: string; profile?: string; roleArn?: string }
     | null
     | undefined;
   let cachedCluster:
     | { name: string; server: string; caData?: string; skipTLSVerify?: boolean; namespace?: string }
     | null = null;
 
-  const resolveEksConfig = (kc: KubeConfigLike): { clusterName: string; region: string; profile?: string } | null => {
+  const resolveEksConfig = (kc: KubeConfigLike): { clusterName: string; region: string; profile?: string; roleArn?: string } | null => {
     if (cachedEksConfig !== undefined) {
       return cachedEksConfig;
     }
+    const parsed = parseAwsEksExec(getCurrentUser(kc)?.exec);
     if (config.auth?.type === "eks") {
-      const parsed = parseAwsEksExec(getCurrentUser(kc)?.exec);
       const clusterName =
         config.auth.cluster ?? config.clusterName ?? parsed?.clusterName;
       const region = config.auth.region ?? config.region ?? parsed?.region;
@@ -585,6 +586,7 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
         clusterName,
         region,
         profile: config.auth.profile ?? config.profile,
+        roleArn: config.auth.role_arn ?? parsed?.roleArn,
       };
       return cachedEksConfig;
     }
@@ -593,10 +595,10 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
         clusterName: config.clusterName,
         region: config.region,
         profile: config.profile,
+        roleArn: parsed?.roleArn,
       };
       return cachedEksConfig;
     }
-    const parsed = parseAwsEksExec(getCurrentUser(kc)?.exec);
     if (!parsed) {
       cachedEksConfig = null;
       return cachedEksConfig;
@@ -605,13 +607,14 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
       clusterName: parsed.clusterName,
       region: parsed.region,
       profile: config.profile ?? parsed.profile,
+      roleArn: parsed.roleArn,
     };
     return cachedEksConfig;
   };
 
   const resolveClusterInfo = async (
     kc: KubeConfigLike,
-    eksConfig: { clusterName: string; region: string; profile?: string },
+    eksConfig: { clusterName: string; region: string; profile?: string; roleArn?: string },
   ): Promise<{ name: string; server: string; caData?: string; skipTLSVerify?: boolean; namespace?: string }> => {
     if (cachedCluster) {
       return cachedCluster;
@@ -628,6 +631,7 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
         clusterName: eksConfig.clusterName,
         region: eksConfig.region,
         profile: eksConfig.profile,
+        roleArn: eksConfig.roleArn,
       });
       server = server ?? fetched.endpoint;
       caData = caData ?? fetched.certificateAuthorityData;
@@ -670,6 +674,7 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
         clusterName: eksConfig.clusterName,
         region: eksConfig.region,
         profile: eksConfig.profile,
+        roleArn: eksConfig.roleArn,
       });
       const tokenConfig = buildKubeConfigWithToken({
         clusterName: clusterInfo.name,
