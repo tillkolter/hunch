@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -22,6 +23,18 @@ import {
   resolveStoreDir,
   truncateEventMessage,
 } from "@guckdev/core";
+const loadVersion = (): string => {
+  try {
+    const pkgUrl = new URL("../package.json", import.meta.url);
+    const raw = fs.readFileSync(pkgUrl, "utf8");
+    const parsed = JSON.parse(raw) as { version?: unknown };
+    return typeof parsed.version === "string" && parsed.version.trim().length > 0
+      ? parsed.version
+      : "unknown";
+  } catch {
+    return "unknown";
+  }
+};
 const SEARCH_SCHEMA = {
   type: "object",
   description:
@@ -292,7 +305,7 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
   const server = new Server(
     {
       name: "guck",
-      version: "0.1.0",
+      version: loadVersion(),
     },
     {
       capabilities: {

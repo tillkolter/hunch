@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   loadConfig,
   resolveStoreDir,
@@ -18,7 +18,7 @@ import { startMcpServer } from "@guckdev/mcp";
 
 const printHelp = (): void => {
   console.log(
-    `Guck - MCP-first telemetry\n\nCommands:\n  init                 Create .guck.json and .guck.local.json\n  checkpoint           Write a .guck-checkpoint epoch timestamp\n  wrap --service <s> --session <id> -- <cmd...>\n                       Capture stdout/stderr and write JSONL\n  emit --service <s> --session <id>\n                       Read JSON events from stdin and append\n  mcp                  Start MCP server\n  upgrade              Update the @guckdev/cli install\n\nOptions:\n  --version, -v        Print version\n`,
+    `Guck - MCP-first telemetry\n\nCommands:\n  init                 Create .guck.json and .guck.local.json\n  checkpoint           Write a .guck-checkpoint epoch timestamp\n  wrap --service <s> --session <id> -- <cmd...>\n                       Capture stdout/stderr and write JSONL\n  emit --service <s> --session <id>\n                       Read JSON events from stdin and append\n  mcp                  Start MCP server\n  upgrade [--manager <npm|pnpm|yarn|bun>]\n                       Update the @guckdev/cli install\n\nOptions:\n  --version, -v        Print version\n`,
   );
 };
 
@@ -47,6 +47,24 @@ const printVersion = (): void => {
 
 type PackageManagerName = "npm" | "pnpm" | "yarn" | "bun";
 
+type UpgradeManagerSource =
+  | "flag"
+  | "env"
+  | "user agent"
+  | "execpath"
+  | "entry path";
+
+const isPackageManager = (value: string): value is PackageManagerName =>
+  value === "npm" || value === "pnpm" || value === "yarn" || value === "bun";
+
+const parsePackageManager = (value: string | undefined | null): PackageManagerName | null => {
+  if (!value) {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  return isPackageManager(normalized) ? normalized : null;
+};
+
 const detectPackageManager = (): PackageManagerName | null => {
   const userAgent = process.env.npm_config_user_agent;
   if (!userAgent) {
@@ -54,6 +72,76 @@ const detectPackageManager = (): PackageManagerName | null => {
   }
   const match = userAgent.match(/^(npm|pnpm|yarn|bun)\//);
   return match ? (match[1] as PackageManagerName) : null;
+};
+
+const detectPackageManagerFromExecPath = (execPath: string | undefined): PackageManagerName | null => {
+  if (!execPath) {
+    return null;
+  }
+  const lowered = execPath.toLowerCase();
+  if (lowered.includes("pnpm")) {
+    return "pnpm";
+  }
+  if (lowered.includes("yarn")) {
+    return "yarn";
+  }
+  if (lowered.includes("npm")) {
+    return "npm";
+  }
+  return null;
+};
+
+const detectPackageManagerFromEntryPath = (entryPath: string | null): PackageManagerName | null => {
+  if (!entryPath) {
+    return null;
+  }
+  const lowered = entryPath.toLowerCase();
+  if (lowered.includes("/.pnpm/")) {
+    return "pnpm";
+  }
+  if (lowered.includes("/.yarn/") || lowered.includes("/.config/yarn/")) {
+    return "yarn";
+  }
+  if (lowered.includes("/.bun/")) {
+    return "bun";
+  }
+  if (lowered.includes("/lib/node_modules/") || lowered.includes("/node_modules/@guckdev/cli/")) {
+    return "npm";
+  }
+  return null;
+};
+
+const resolveUpgradeManager = (
+  opts: Record<string, string>,
+  env: NodeJS.ProcessEnv,
+  entryPath: string | null,
+): { manager: PackageManagerName; source: UpgradeManagerSource } | null => {
+  const fromFlag = parsePackageManager(opts.manager);
+  if (fromFlag) {
+    return { manager: fromFlag, source: "flag" };
+  }
+
+  const fromEnv = parsePackageManager(env.GUCK_UPGRADE_MANAGER);
+  if (fromEnv) {
+    return { manager: fromEnv, source: "env" };
+  }
+
+  const fromUserAgent = detectPackageManager();
+  if (fromUserAgent) {
+    return { manager: fromUserAgent, source: "user agent" };
+  }
+
+  const fromExecPath = detectPackageManagerFromExecPath(env.npm_execpath);
+  if (fromExecPath) {
+    return { manager: fromExecPath, source: "execpath" };
+  }
+
+  const fromEntryPath = detectPackageManagerFromEntryPath(entryPath);
+  if (fromEntryPath) {
+    return { manager: fromEntryPath, source: "entry path" };
+  }
+
+  return null;
 };
 
 const getPackageManagerCandidates = (): PackageManagerName[] => {
@@ -79,13 +167,36 @@ const buildUpgradeArgs = (manager: PackageManagerName): string[] => {
   }
 };
 
+const canUseExecPath = (manager: PackageManagerName, execPath: string | undefined): boolean => {
+  if (!execPath) {
+    return false;
+  }
+  if (manager === "bun") {
+    return false;
+  }
+  const lowered = execPath.toLowerCase();
+  return lowered.includes(manager);
+};
+
+const spawnUpgradeProcess = (
+  manager: PackageManagerName,
+  args: string[],
+  execPath: string | undefined,
+): ReturnType<typeof spawn> => {
+  if (canUseExecPath(manager, execPath)) {
+    return spawn(process.execPath, [execPath as string, ...args], { stdio: "inherit" });
+  }
+  return spawn(manager, args, { stdio: "inherit" });
+};
+
 const runUpgrade = async (
   manager: PackageManagerName,
+  execPath: string | undefined,
 ): Promise<{ status: "ok"; code: number } | { status: "missing" } | { status: "failed"; error: Error }> => {
   const args = buildUpgradeArgs(manager);
   return await new Promise((resolve) => {
     let settled = false;
-    const child = spawn(manager, args, { stdio: "inherit" });
+    const child = spawnUpgradeProcess(manager, args, execPath);
     const finish = (
       result: { status: "ok"; code: number } | { status: "missing" } | { status: "failed"; error: Error },
     ) => {
@@ -310,20 +421,111 @@ const handleEmit = async (argv: string[]): Promise<number> => {
 
 const handleUpgrade = async (argv: string[]): Promise<number> => {
   if (argv.includes("--help") || argv.includes("-h")) {
-    console.log("Usage: guck upgrade\nUpdates @guckdev/cli using a global install.");
+    console.log("Usage: guck upgrade [--manager <npm|pnpm|yarn|bun>]\nUpdates @guckdev/cli using a global install.");
     return 0;
   }
 
-  for (const manager of getPackageManagerCandidates()) {
-    const result = await runUpgrade(manager);
+  const { opts } = parseArgs(argv);
+  const beforeVersion = loadVersion();
+  let entryPath: string | null = null;
+  try {
+    entryPath = fs.realpathSync(process.argv[1]);
+  } catch {
+    entryPath = process.argv[1] ?? null;
+  }
+
+  const explicitManager = opts.manager ? parsePackageManager(opts.manager) : null;
+  if (opts.manager && !explicitManager) {
+    console.error(`Invalid package manager: ${opts.manager}. Expected npm, pnpm, yarn, or bun.`);
+    return 1;
+  }
+
+  const resolved = resolveUpgradeManager(opts, process.env, entryPath);
+  const execPath = process.env.npm_execpath;
+
+  const tryUpgrade = async (manager: PackageManagerName, source: UpgradeManagerSource | null) => {
+    if (source) {
+      console.log(`Using ${manager} (detected from ${source}).`);
+    }
+    const result = await runUpgrade(manager, execPath);
     if (result.status === "missing") {
-      continue;
+      return { status: "missing" as const };
     }
     if (result.status === "failed") {
       console.error(`Failed to run ${manager}.`, result.error);
+      return { status: "failed" as const, code: 1 };
+    }
+    return { status: "ok" as const, code: result.code };
+  };
+
+  const verifyUpgrade = (exitCode: number): number => {
+    const after = spawnSync("guck", ["--version"], { encoding: "utf8" });
+    const afterVersion = after.status === 0 ? after.stdout.trim() : null;
+    if (!afterVersion || !beforeVersion) {
+      console.warn("Upgrade completed, but could not verify the installed version.");
+      if (after.status !== 0 && after.stderr) {
+        console.warn(after.stderr.trim());
+      }
+      console.warn(`Current script path: ${process.argv[1] ?? "unknown"}`);
+      return exitCode;
+    }
+    if (afterVersion === beforeVersion) {
+      let resolvedPath = "";
+      const whichCmd = process.platform === "win32" ? "where" : "which";
+      const whichResult = spawnSync(whichCmd, ["guck"], { encoding: "utf8" });
+      if (whichResult.status === 0) {
+        resolvedPath = whichResult.stdout.trim();
+      }
+      console.warn("Upgrade finished, but the active guck version did not change.");
+      console.warn(`Before: ${beforeVersion}`);
+      console.warn(`After : ${afterVersion}`);
+      console.warn(`Current script path: ${process.argv[1] ?? "unknown"}`);
+      if (resolvedPath) {
+        console.warn(`PATH-resolved guck: ${resolvedPath}`);
+      }
+      return exitCode;
+    }
+
+    console.log("Upgraded @guckdev/cli");
+    console.log(`Before: ${beforeVersion}`);
+    console.log(`After : ${afterVersion}`);
+    return exitCode;
+  };
+
+  if (explicitManager) {
+    const result = await tryUpgrade(explicitManager, "flag");
+    if (result.status === "missing") {
+      console.error(`No ${explicitManager} executable found on PATH.`);
       return 1;
     }
-    return result.code;
+    if (result.status === "failed") {
+      return result.code;
+    }
+    return verifyUpgrade(result.code);
+  }
+
+  const candidates: Array<{ manager: PackageManagerName; source: UpgradeManagerSource | null }> = [];
+  if (resolved) {
+    candidates.push({ manager: resolved.manager, source: resolved.source });
+  }
+  for (const manager of getPackageManagerCandidates()) {
+    if (!candidates.some((candidate) => candidate.manager === manager)) {
+      candidates.push({ manager, source: null });
+    }
+  }
+
+  for (const candidate of candidates) {
+    const result = await tryUpgrade(candidate.manager, candidate.source);
+    if (result.status === "missing") {
+      if (candidate.source) {
+        console.warn(`${candidate.manager} not found. Falling back to other package managers.`);
+      }
+      continue;
+    }
+    if (result.status === "failed") {
+      return result.code;
+    }
+    return verifyUpgrade(result.code);
   }
 
   console.error("No supported package manager found (npm, pnpm, yarn, bun).");
