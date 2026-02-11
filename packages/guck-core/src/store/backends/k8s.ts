@@ -71,6 +71,56 @@ const isGuckLikeObject = (value: Record<string, unknown>): boolean => {
   return keys.some((key) => key in value);
 };
 
+const hasStructuredKeys = (value: Record<string, unknown>): boolean => {
+  const keys = [
+    "ts",
+    "timestamp",
+    "time",
+    "@timestamp",
+    "level",
+    "severity",
+    "message",
+    "msg",
+    "log",
+  ];
+  return keys.some((key) => key in value);
+};
+
+const coerceTimestamp = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const parsed = Date.parse(trimmed);
+    if (!Number.isNaN(parsed)) {
+      return new Date(parsed).toISOString();
+    }
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) {
+      return new Date(numeric).toISOString();
+    }
+    return undefined;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return new Date(value).toISOString();
+  }
+  return undefined;
+};
+
+const coerceMessage = (value: Record<string, unknown>): string | undefined => {
+  if (typeof value.message === "string") {
+    return value.message;
+  }
+  if (typeof value.msg === "string") {
+    return value.msg;
+  }
+  if (typeof value.log === "string") {
+    return value.log;
+  }
+  return undefined;
+};
+
 const extractTags = (value: unknown): Record<string, string> | undefined => {
   if (!value || typeof value !== "object") {
     return undefined;
@@ -165,23 +215,35 @@ const toEvent = (
       return fallback;
     }
     const record = parsed as Record<string, unknown>;
-    if (!isGuckLikeObject(record)) {
+    if (!isGuckLikeObject(record) && !hasStructuredKeys(record)) {
       return fallback;
     }
 
-    const level = normalizeLevel(record.level as string | undefined) ?? inferLevel(message);
-    const eventMessage = typeof record.message === "string" ? record.message : message;
+    const level =
+      normalizeLevel(record.level as string | undefined) ??
+      normalizeLevel(record.severity as string | undefined) ??
+      inferLevel(message);
+    const eventMessage = coerceMessage(record) ?? message;
+    const recordTs =
+      (typeof record.ts === "string" && record.ts.trim() ? record.ts : undefined) ??
+      coerceTimestamp(record.ts) ??
+      coerceTimestamp(record.timestamp) ??
+      coerceTimestamp(record.time) ??
+      coerceTimestamp(record["@timestamp"]) ??
+      ts;
     const source = normalizeSource(record.source, config.id);
+    const baseData = extractData(record, fallbackData);
+    const data = baseData ? { ...fallbackData, ...baseData } : fallbackData;
     return {
       id: typeof record.id === "string" ? record.id : fallback.id,
-      ts: typeof record.ts === "string" ? record.ts : ts,
+      ts: recordTs,
       level,
       type: typeof record.type === "string" ? record.type : "log",
       service: typeof record.service === "string" ? record.service : service,
       run_id: typeof record.run_id === "string" ? record.run_id : runId,
       session_id: typeof record.session_id === "string" ? record.session_id : undefined,
       message: eventMessage,
-      data: extractData(record, fallbackData),
+      data,
       tags: extractTags(record.tags),
       trace_id: typeof record.trace_id === "string" ? record.trace_id : undefined,
       span_id: typeof record.span_id === "string" ? record.span_id : undefined,
@@ -755,4 +817,11 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
     stats,
     sessions,
   };
+};
+
+export const __test__ = {
+  toEvent,
+  hasStructuredKeys,
+  coerceTimestamp,
+  coerceMessage,
 };
