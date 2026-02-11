@@ -222,6 +222,88 @@ jobs:
         run: npm publish --access public --provenance
         working-directory: packages/guck-cli
 
+  publish-browser:
+    name: "Publish @guckdev/browser"
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_VERSION: ${{ needs.release.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@9.12.3 --activate
+
+      - name: Upgrade npm (OIDC support)
+        run: npm install -g npm@11.5.1
+
+      - name: Install JS deps (pnpm install)
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync release version
+        run: node scripts/release-prepare.mjs "${RELEASE_VERSION}"
+
+      - name: Publish @guckdev/browser
+        run: npm publish --access public --provenance
+        working-directory: packages/guck-browser
+
+  publish-vite:
+    name: "Publish @guckdev/vite"
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_VERSION: ${{ needs.release.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@9.12.3 --activate
+
+      - name: Upgrade npm (OIDC support)
+        run: npm install -g npm@11.5.1
+
+      - name: Install JS deps (pnpm install)
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync release version
+        run: node scripts/release-prepare.mjs "${RELEASE_VERSION}"
+
+      - name: Publish @guckdev/vite
+        run: npm publish --access public --provenance
+        working-directory: packages/guck-vite
+
   publish-py:
     name: "Publish guck-sdk (PyPI)"
     needs: release
