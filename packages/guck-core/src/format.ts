@@ -31,6 +31,31 @@ const stringifyValue = (value: unknown): string => {
   }
 };
 
+const truncateString = (value: string, maxChars: number): string => {
+  if (maxChars <= 0 || value.length <= maxChars) {
+    return value;
+  }
+  const suffix = "...";
+  if (maxChars <= suffix.length) {
+    return value.slice(0, maxChars);
+  }
+  return value.slice(0, maxChars - suffix.length) + suffix;
+};
+
+export const truncateEventMessage = (
+  event: GuckEvent,
+  maxChars?: number,
+): GuckEvent => {
+  if (!maxChars || maxChars <= 0) {
+    return event;
+  }
+  const message = event.message;
+  if (!message || message.length <= maxChars) {
+    return event;
+  }
+  return { ...event, message: truncateString(message, maxChars) };
+};
+
 export const projectEventFields = (
   event: GuckEvent,
   fields: string[],

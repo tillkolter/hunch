@@ -20,6 +20,7 @@ import {
   readTail,
   redactEvent,
   resolveStoreDir,
+  truncateEventMessage,
 } from "@guckdev/core";
 import { resolveHttpIngestConfig, startHttpIngest, type HttpIngestConfig } from "./ingest.js";
 import { writeIngestRegistryEntry } from "./registry.js";
@@ -76,6 +77,16 @@ const SEARCH_SCHEMA = {
       type: "number",
       description:
         "Maximum number of events to return (defaults to config.mcp.max_results).",
+    },
+    max_output_chars: {
+      type: "number",
+      description:
+        "Maximum total characters to return in the response payload (uses config.mcp.max_output_chars when omitted).",
+    },
+    max_message_chars: {
+      type: "number",
+      description:
+        "Truncate event.message to this length before formatting (uses config.mcp.max_message_chars when omitted).",
     },
     format: {
       type: "string",
@@ -145,6 +156,16 @@ const TAIL_SCHEMA = {
     run_id: { type: "string" },
     limit: { type: "number" },
     query: { type: "string" },
+    max_output_chars: {
+      type: "number",
+      description:
+        "Maximum total characters to return in the response payload (uses config.mcp.max_output_chars when omitted).",
+    },
+    max_message_chars: {
+      type: "number",
+      description:
+        "Truncate event.message to this length before formatting (uses config.mcp.max_message_chars when omitted).",
+    },
     format: { type: "string", enum: ["json", "text"] },
     fields: { type: "array", items: { type: "string" } },
     template: { type: "string" },
@@ -162,6 +183,83 @@ const buildText = (payload: unknown) => {
       },
     ],
   };
+};
+
+const OUTPUT_LIMIT_WARNING =
+  "Output truncated to fit max_output_chars. Consider using fields/template or max_message_chars to reduce size.";
+
+const normalizeMaxChars = (value: number | undefined): number | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!Number.isFinite(value)) {
+    return undefined;
+  }
+  const normalized = Math.floor(value);
+  if (normalized <= 0) {
+    return undefined;
+  }
+  return normalized;
+};
+
+const resolveMaxChars = (
+  value: number | undefined,
+  fallback: number | undefined,
+): number | undefined => {
+  return normalizeMaxChars(value ?? fallback);
+};
+
+const payloadLength = (payload: unknown): number => {
+  return JSON.stringify(payload, null, 2).length;
+};
+
+const limitPayloadItems = <T>(
+  items: T[],
+  maxOutputChars: number | undefined,
+  buildPayload: (items: T[], truncated: boolean, warning?: string) => unknown,
+  baseTruncated: boolean,
+): { items: T[]; truncated: boolean; warning?: string } => {
+  if (!maxOutputChars) {
+    return { items, truncated: baseTruncated };
+  }
+
+  const limited: T[] = [];
+  let truncated = baseTruncated;
+  let warning: string | undefined;
+
+  for (const item of items) {
+    const candidate = [...limited, item];
+    if (payloadLength(buildPayload(candidate, truncated, warning)) <= maxOutputChars) {
+      limited.push(item);
+      continue;
+    }
+    warning = OUTPUT_LIMIT_WARNING;
+    truncated = true;
+    if (payloadLength(buildPayload(limited, truncated, warning)) <= maxOutputChars) {
+      return { items: limited, truncated, warning };
+    }
+    while (limited.length > 0) {
+      limited.pop();
+      if (payloadLength(buildPayload(limited, truncated, warning)) <= maxOutputChars) {
+        return { items: limited, truncated, warning };
+      }
+    }
+    return { items: [], truncated: true, warning };
+  }
+
+  if (payloadLength(buildPayload(limited, truncated, warning)) <= maxOutputChars) {
+    return { items: limited, truncated, warning };
+  }
+
+  warning = OUTPUT_LIMIT_WARNING;
+  truncated = true;
+  while (limited.length > 0) {
+    limited.pop();
+    if (payloadLength(buildPayload(limited, truncated, warning)) <= maxOutputChars) {
+      return { items: limited, truncated, warning };
+    }
+  }
+  return { items: [], truncated: true, warning };
 };
 
 const resolveSince = (
@@ -304,26 +402,81 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
       };
       try {
         const result = await readSearch(config, rootDir, withDefaults);
+        const maxMessageChars = resolveMaxChars(
+          input.max_message_chars,
+          config.mcp.max_message_chars,
+        );
+        const maxOutputChars = resolveMaxChars(
+          input.max_output_chars,
+          config.mcp.max_output_chars,
+        );
         const redacted = result.events.map((event) => redactEvent(config, event));
+        const trimmed = maxMessageChars
+          ? redacted.map((event) => truncateEventMessage(event, maxMessageChars))
+          : redacted;
         if (input.format === "text") {
-          const lines = redacted.map((event) => formatEventText(event, input.template));
+          const lines = trimmed.map((event) => formatEventText(event, input.template));
+          const limited = limitPayloadItems(
+            lines,
+            maxOutputChars,
+            (items, truncated, warning) => ({
+              format: "text",
+              lines: items,
+              truncated,
+              errors: result.errors,
+              warning,
+            }),
+            result.truncated,
+          );
           return buildText({
             format: "text",
-            lines,
-            truncated: result.truncated,
+            lines: limited.items,
+            truncated: limited.truncated,
             errors: result.errors,
+            warning: limited.warning,
           });
         }
         if (input.fields && input.fields.length > 0) {
-          const projected = redacted.map((event) => projectEventFields(event, input.fields ?? []));
+          const projected = trimmed.map((event) => projectEventFields(event, input.fields ?? []));
+          const limited = limitPayloadItems(
+            projected,
+            maxOutputChars,
+            (items, truncated, warning) => ({
+              format: "json",
+              events: items,
+              truncated,
+              errors: result.errors,
+              warning,
+            }),
+            result.truncated,
+          );
           return buildText({
             format: "json",
-            events: projected,
-            truncated: result.truncated,
+            events: limited.items,
+            truncated: limited.truncated,
             errors: result.errors,
+            warning: limited.warning,
           });
         }
-        return buildText({ format: "json", ...result, events: redacted });
+        const limited = limitPayloadItems(
+          trimmed,
+          maxOutputChars,
+          (items, truncated, warning) => ({
+            format: "json",
+            events: items,
+            truncated,
+            errors: result.errors,
+            warning,
+          }),
+          result.truncated,
+        );
+        return buildText({
+          format: "json",
+          events: limited.items,
+          truncated: limited.truncated,
+          errors: result.errors,
+          warning: limited.warning,
+        });
       } catch (error) {
         if (error instanceof Error && error.message.startsWith("Invalid query:")) {
           return buildText({ error: error.message, query: input.query });
@@ -376,26 +529,81 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
         }
         throw error;
       }
+      const maxMessageChars = resolveMaxChars(
+        input.max_message_chars,
+        config.mcp.max_message_chars,
+      );
+      const maxOutputChars = resolveMaxChars(
+        input.max_output_chars,
+        config.mcp.max_output_chars,
+      );
       const redacted = result.events.map((event) => redactEvent(config, event));
+      const trimmed = maxMessageChars
+        ? redacted.map((event) => truncateEventMessage(event, maxMessageChars))
+        : redacted;
       if (input.format === "text") {
-        const lines = redacted.map((event) => formatEventText(event, input.template));
+        const lines = trimmed.map((event) => formatEventText(event, input.template));
+        const limited = limitPayloadItems(
+          lines,
+          maxOutputChars,
+          (items, truncated, warning) => ({
+            format: "text",
+            lines: items,
+            truncated,
+            errors: result.errors,
+            warning,
+          }),
+          result.truncated,
+        );
         return buildText({
           format: "text",
-          lines,
-          truncated: result.truncated,
+          lines: limited.items,
+          truncated: limited.truncated,
           errors: result.errors,
+          warning: limited.warning,
         });
       }
       if (input.fields && input.fields.length > 0) {
-        const projected = redacted.map((event) => projectEventFields(event, input.fields ?? []));
+        const projected = trimmed.map((event) => projectEventFields(event, input.fields ?? []));
+        const limited = limitPayloadItems(
+          projected,
+          maxOutputChars,
+          (items, truncated, warning) => ({
+            format: "json",
+            events: items,
+            truncated,
+            errors: result.errors,
+            warning,
+          }),
+          result.truncated,
+        );
         return buildText({
           format: "json",
-          events: projected,
-          truncated: result.truncated,
+          events: limited.items,
+          truncated: limited.truncated,
           errors: result.errors,
+          warning: limited.warning,
         });
       }
-      return buildText({ format: "json", ...result, events: redacted });
+      const limited = limitPayloadItems(
+        trimmed,
+        maxOutputChars,
+        (items, truncated, warning) => ({
+          format: "json",
+          events: items,
+          truncated,
+          errors: result.errors,
+          warning,
+        }),
+        result.truncated,
+      );
+      return buildText({
+        format: "json",
+        events: limited.items,
+        truncated: limited.truncated,
+        errors: result.errors,
+        warning: limited.warning,
+      });
     }
 
     throw new Error(`Unknown tool: ${request.params.name}`);

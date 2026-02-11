@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatEventText, projectEventFields } from "../dist/format.js";
+import { formatEventText, projectEventFields, truncateEventMessage } from "../dist/format.js";
 
 const baseEvent = {
   id: "1",
@@ -48,4 +48,19 @@ test("formatEventText template", () => {
 test("formatEventText template missing fields and json values", () => {
   const text = formatEventText(baseEvent, "{ts}|{missing}|{data}|{tags}");
   assert.equal(text, "2026-02-09T00:00:00.000Z||{\"stage\":\"x\"}|{\"env\":\"test\"}");
+});
+
+test("truncateEventMessage leaves short messages", () => {
+  const truncated = truncateEventMessage(baseEvent, 10);
+  assert.equal(truncated.message, "hello");
+});
+
+test("truncateEventMessage truncates with suffix", () => {
+  const truncated = truncateEventMessage({ ...baseEvent, message: "hello world" }, 8);
+  assert.equal(truncated.message, "hello...");
+});
+
+test("truncateEventMessage respects tiny limits", () => {
+  const truncated = truncateEventMessage({ ...baseEvent, message: "hello" }, 2);
+  assert.equal(truncated.message, "he");
 });

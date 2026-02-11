@@ -190,7 +190,12 @@ export GUCK_SESSION_ID=dev-2026-02-10
     "keys": ["authorization","api_key","token","secret","password"],
     "patterns": ["sk-[A-Za-z0-9]{20,}","Bearer\\s+[A-Za-z0-9._-]+"]
   },
-  "mcp": { "max_results": 200, "default_lookback_ms": 300000 }
+  "mcp": {
+    "max_results": 200,
+    "default_lookback_ms": 300000,
+    "max_output_chars": 0,
+    "max_message_chars": 0
+  }
 }
 ```
 
@@ -257,6 +262,8 @@ HTTP ingest config (optional defaults shown):
   "mcp": {
     "max_results": 200,
     "default_lookback_ms": 300000,
+    "max_output_chars": 0,
+    "max_message_chars": 0,
     "http": {
       "host": "127.0.0.1",
       "path": "/guck/emit",
@@ -352,6 +359,10 @@ Guck exposes these MCP tools (filter-first):
 - `format` — `json` (default) or `text`.
 - `fields` — when `format: "json"`, project events to these top-level fields.
 - `template` — when `format: "text"`, format each line using tokens like `{ts}|{service}|{message}`. Missing tokens become empty strings.
+- `max_output_chars` — cap total response size in characters (set `max_message_chars` or use `fields/template` to shrink output).
+- `max_message_chars` — truncate `event.message` before formatting/projection.
+
+When `max_output_chars` is exceeded, responses include `warning` and set `truncated: true`. Set either value to `0` (or omit it) to disable the cap.
 
 Examples:
 

@@ -38,6 +38,8 @@ class GuckRedactionConfig(TypedDict):
 class GuckMcpConfig(TypedDict):
     max_results: int
     default_lookback_ms: int
+    max_output_chars: int
+    max_message_chars: int
     http: "GuckMcpHttpConfig"
 
 
