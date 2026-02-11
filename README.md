@@ -54,7 +54,7 @@ emit({ message: "hello from app" });
 
 ## Vite drop-in (dev)
 
-Add the Vite plugin to handle `/guck/emit` during development:
+Add the Vite plugin to proxy `/guck/emit` during development:
 
 ```ts
 import { defineConfig } from "vite";
@@ -66,7 +66,6 @@ export default defineConfig({
 ```
 
 Then point the browser SDK at `/guck/emit`.
-The plugin writes those events directly into the local log store.
 
 ## Monorepo layout
 
@@ -109,6 +108,7 @@ emit({"message": "hello from python"})
 {
   "version": 1,
   "enabled": true,
+  "store_dir": "logs/guck",
   "default_service": "my-service"
 }
 ```
@@ -152,67 +152,49 @@ Guck is **enabled by default** using built-in defaults. Add a `.guck.json` or
 set `GUCK_CONFIG_PATH` to override settings. You can also set `"enabled": false`
 inside the config to turn it off explicitly.
 
-The log directory is not configurable via `.guck.json`; set `GUCK_DIR` on the
-server process (MCP/Vite) if you need a custom location.
-
 For MCP usage across multiple repos, each tool accepts an optional
 `config_path` parameter to point at a specific `.guck.json`.
 
 ### Multi-service or multi-repo tracing (shared store)
 
-By default, Guck writes to a shared log store at `~/.guck/logs`, so multiple
-local services and repos already land in the same place. Use a shared
-`GUCK_SESSION_ID` to correlate a dev run and distinct `service` names to
-separate sources.
+To trace across local microservices (or multiple repos), point every service
+at the same **absolute** `store_dir`. This creates a single shared log store
+that `guck.search` can query across. Use a shared `GUCK_SESSION_ID` to
+correlate events and distinct `service` names to separate sources.
 
-If you need a custom location, set `GUCK_DIR` on the **server** process
-(MCP or Vite dev server) so all writes land in the same absolute folder.
+Example shared config:
 
 ```json
 {
   "version": 1,
   "enabled": true,
+  "store_dir": "/Users/you/.guck/logs"
+}
+```
+
+Then set:
+
+```sh
+export GUCK_CONFIG_PATH=/path/to/shared/.guck.json
+export GUCK_SESSION_ID=dev-2026-02-10
+```
+
+```json
+{
+  "version": 1,
+  "enabled": true,
+  "store_dir": "logs/guck",
   "default_service": "my-service",
   "redaction": {
     "enabled": true,
     "keys": ["authorization","api_key","token","secret","password"],
     "patterns": ["sk-[A-Za-z0-9]{20,}","Bearer\\s+[A-Za-z0-9._-]+"]
   },
-  "mcp": {
-    "max_results": 200,
-    "default_lookback_ms": 300000,
-    "max_output_chars": 0,
-    "max_message_chars": 0
-  }
+  "mcp": { "max_results": 200, "default_lookback_ms": 300000 }
 }
 ```
 
 Remote backends (CloudWatch/K8s) require optional SDK installs; install only if you use them.
-
-Kubernetes (EKS) backend example (SDK auth; no aws/kubectl exec):
-
-```json
-{
-  "read": {
-    "backend": "multi",
-    "backends": [
-      {
-        "type": "k8s",
-        "id": "k8s-api",
-        "namespace": "avatars",
-        "selector": "app.kubernetes.io/component=api,app.kubernetes.io/instance=avatars",
-        "container": "avatars",
-        "clusterName": "eks1-euc1-stg-bi",
-        "region": "eu-central-1",
-        "profile": "business-innovation-dev.admin"
-      }
-    ]
-  }
-}
-```
-
-If `clusterName` and `region` are set (or your kubeconfig user uses `aws eks get-token`),
-Guck uses the AWS SDK to fetch tokens and ignores kubeconfig exec plugins.
 
 ### JS SDK auto-capture (stdout/stderr)
 
@@ -237,8 +219,11 @@ auto-capture intentionally skips to avoid double logging.
 
 ### Browser SDK (console + errors)
 
-Use the Vite plugin to handle `/guck/emit` during development, then point the
-browser SDK at that path.
+Enable the MCP HTTP ingest endpoint:
+
+```sh
+guck mcp --http-port 7331
+```
 
 Emit browser events:
 
@@ -246,7 +231,7 @@ Emit browser events:
 import { createBrowserClient } from "@guckdev/browser";
 
 const client = createBrowserClient({
-  endpoint: "/guck/emit",
+  endpoint: "http://localhost:7331/guck/emit",
   service: "web-ui",
   sessionId: "dev-1",
 });
@@ -265,6 +250,22 @@ console.error("boom");
 stop();
 ```
 
+HTTP ingest config (optional defaults shown):
+
+```json
+{
+  "mcp": {
+    "max_results": 200,
+    "default_lookback_ms": 300000,
+    "http": {
+      "host": "127.0.0.1",
+      "path": "/guck/emit",
+      "max_body_bytes": 512000
+    }
+  }
+}
+```
+
 Notes:
 - `installAutoCapture()` should usually be called once at app startup; repeated calls will wrap console multiple times.
 - If you install it inside a component or test, call `stop()` on cleanup to avoid duplicate logging.
@@ -273,16 +274,20 @@ Notes:
 
 ### Environment overrides
 - `GUCK_CONFIG_PATH` — explicit config path
-- `GUCK_DIR` — server-side store dir override (MCP/Vite)
+- `GUCK_DIR` — store dir override
 - `GUCK_ENABLED` — true/false
 - `GUCK_SERVICE` — service name
 - `GUCK_SESSION_ID` — session override
 - `GUCK_RUN_ID` — run id override
+- `GUCK_MCP_HTTP_PORT` — enable HTTP ingest on this port
+- `GUCK_MCP_HTTP_HOST` — HTTP ingest host override
+- `GUCK_MCP_HTTP_PATH` — HTTP ingest path override
+- `GUCK_MCP_HTTP_MAX_BODY_BYTES` — max ingest request size
 
 ### Checkpoint
 
-`guck checkpoint` writes a `.guck-checkpoint` file in the root of the log
-store containing an epoch millisecond timestamp. When
+`guck checkpoint` writes a `.guck-checkpoint` file in the root of your
+`store_dir` (the log folder) containing an epoch millisecond timestamp. When
 MCP tools are called without `since`, Guck uses the checkpoint timestamp as
 the default time window. You
 can also pass `since: "checkpoint"` to explicitly anchor a query to the
@@ -315,7 +320,7 @@ Each line in the log is a single JSON event:
 By default, Guck writes per-run JSONL files:
 
 ```
-~/.guck/logs/<service>/<YYYY-MM-DD>/<run_id>.jsonl
+logs/guck/<service>/<YYYY-MM-DD>/<run_id>.jsonl
 ```
 
 ## Minimal CLI
@@ -333,7 +338,6 @@ telemetry; filtering is MCP-first.
 
 Guck exposes these MCP tools (filter-first):
 
-- `guck.mcp_version` — MCP package name + version
 - `guck.search`
 - `guck.stats`
 - `guck.sessions`
@@ -346,12 +350,9 @@ Guck exposes these MCP tools (filter-first):
 - `query` — boolean search over **message only** (case-insensitive). Supports `AND`, `OR`, `NOT`, parentheses, and quoted phrases.
 - `contains` — substring search across message/type/session_id/data (unchanged).
 - `format` — `json` (default) or `text`.
-- `fields` — when `format: "json"`, project events to these top-level fields.
-- `template` — when `format: "text"`, format each line using tokens like `{ts}|{service}|{message}`. Missing tokens become empty strings.
-- `max_output_chars` — cap total response size in characters (set `max_message_chars` or use `fields/template` to shrink output).
-- `max_message_chars` — truncate `event.message` before formatting/projection.
-
-When `max_output_chars` is exceeded, responses include `warning` and set `truncated: true`. Set either value to `0` (or omit it) to disable the cap.
+- `fields` — when `format: "json"`, project events to these fields. Dotted paths like `data.rawPeak` are supported.
+- `flatten` — when `format: "json"`, emit dotted field paths as top-level keys (e.g. `"data.rawPeak": 43`).
+- `template` — when `format: "text"`, format each line using tokens like `{ts}|{service}|{message}`. Dotted tokens like `{data.rawPeak}` are supported. Missing tokens become empty strings.
 
 Examples:
 
@@ -359,6 +360,7 @@ Examples:
 { "query": "error AND (db OR timeout)" }
 { "format": "text", "template": "{ts}|{service}|{message}" }
 { "format": "json", "fields": ["ts", "level", "message"] }
+{ "format": "json", "fields": ["ts", "data.rawPeak"], "flatten": true }
 ```
 
 Recommended minimal output for agents:

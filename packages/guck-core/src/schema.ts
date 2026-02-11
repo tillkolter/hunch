@@ -117,6 +117,7 @@ export type GuckSearchParams = {
   max_message_chars?: number;
   format?: "json" | "text";
   fields?: string[];
+  flatten?: boolean;
   template?: string;
   backends?: string[];
   config_path?: string;
@@ -151,6 +152,7 @@ export type GuckTailParams = {
   max_message_chars?: number;
   format?: "json" | "text";
   fields?: string[];
+  flatten?: boolean;
   template?: string;
   backends?: string[];
   config_path?: string;
