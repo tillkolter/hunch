@@ -1,7 +1,8 @@
 # Guck
 
-Guck is a tiny, MCP-first telemetry store for AI debugging. It captures JSONL
-telemetry events and exposes a minimal MCP toolset for fast, filtered queries.
+Guck is a tiny, MCP-first telemetry store for agentic debugging. It provides
+token-efficient log analytics by capturing JSONL telemetry events and exposing
+a minimal MCP toolset for fast, filtered queries.
 
 Guck is designed to be:
 - **Language-agnostic**: emit JSONL from any runtime
@@ -190,7 +191,7 @@ export GUCK_SESSION_ID=dev-2026-02-10
     "keys": ["authorization","api_key","token","secret","password"],
     "patterns": ["sk-[A-Za-z0-9]{20,}","Bearer\\s+[A-Za-z0-9._-]+"]
   },
-  "mcp": { "max_results": 200, "default_lookback_ms": 300000 }
+  "mcp": { "max_results": 200, "max_output_chars": 20000, "default_lookback_ms": 300000 }
 }
 ```
 
@@ -256,6 +257,7 @@ HTTP ingest config (optional defaults shown):
 {
   "mcp": {
     "max_results": 200,
+    "max_output_chars": 20000,
     "default_lookback_ms": 300000,
     "http": {
       "host": "127.0.0.1",
@@ -339,6 +341,7 @@ telemetry; filtering is MCP-first.
 Guck exposes these MCP tools (filter-first):
 
 - `guck.search`
+- `guck.search_batch`
 - `guck.stats`
 - `guck.sessions`
 - `guck.tail` (available, but not default in docs)
@@ -353,6 +356,12 @@ Guck exposes these MCP tools (filter-first):
 - `fields` — when `format: "json"`, project events to these fields. Dotted paths like `data.rawPeak` are supported.
 - `flatten` — when `format: "json"`, emit dotted field paths as top-level keys (e.g. `"data.rawPeak": 43`).
 - `template` — when `format: "text"`, format each line using tokens like `{ts}|{service}|{message}`. Dotted tokens like `{data.rawPeak}` are supported. Missing tokens become empty strings.
+- `force` — bypass output-size guard and return the full payload.
+- `max_message_chars` — per-message cap; trims the `message` field only.
+
+Output is capped by `mcp.max_output_chars`. If a response would exceed the cap,
+the tool returns a warning instead of events/lines unless `force=true`.
+Warnings include `avg_message_chars` and `max_message_chars` computed from full, untrimmed messages.
 
 Examples:
 
@@ -361,6 +370,17 @@ Examples:
 { "format": "text", "template": "{ts}|{service}|{message}" }
 { "format": "json", "fields": ["ts", "level", "message"] }
 { "format": "json", "fields": ["ts", "data.rawPeak"], "flatten": true }
+```
+
+Batch search:
+
+```json
+{
+  "searches": [
+    { "id": "errors", "query": "error", "limit": 50 },
+    { "id": "warnings", "levels": ["warn"], "limit": 50, "max_message_chars": 200 }
+  ]
+}
 ```
 
 Recommended minimal output for agents:

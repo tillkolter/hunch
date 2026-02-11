@@ -121,6 +121,7 @@ export type GuckSearchParams = {
   template?: string;
   backends?: string[];
   config_path?: string;
+  force?: boolean;
 };
 
 export type GuckStatsParams = {
@@ -156,4 +157,5 @@ export type GuckTailParams = {
   template?: string;
   backends?: string[];
   config_path?: string;
+  force?: boolean;
 };

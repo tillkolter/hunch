@@ -21,12 +21,13 @@ import {
   readTail,
   redactEvent,
   resolveStoreDir,
-  truncateEventMessage,
 } from "@guckdev/core";
+import { computeMessageStats, guardPayload, trimEventsMessages } from "./output.js";
+
 const SEARCH_SCHEMA = {
   type: "object",
   description:
-    "Search telemetry events. All filters are combined with AND; query is a message-only boolean expression applied after other filters.",
+    "Search telemetry events. All filters are combined with AND; query is a message-only boolean expression applied after other filters. Output is capped by mcp.max_output_chars; if exceeded, a warning is returned unless force=true. Use max_message_chars to trim message per event; warnings include avg/max message length.",
   additionalProperties: false,
   properties: {
     service: {
@@ -84,8 +85,7 @@ const SEARCH_SCHEMA = {
     },
     max_message_chars: {
       type: "number",
-      description:
-        "Truncate event.message to this length before formatting (uses config.mcp.max_message_chars when omitted).",
+      description: "Per-message cap; trims the message field only.",
     },
     format: {
       type: "string",
@@ -120,7 +120,131 @@ const SEARCH_SCHEMA = {
       description:
         "Path to .guck.json or a directory containing it; overrides default config resolution.",
     },
+    force: {
+      type: "boolean",
+      description: "Bypass output-size guard and return the full payload.",
+    },
   },
+} as const;
+
+const SEARCH_ITEM_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    id: {
+      type: "string",
+      description: "Optional identifier echoed back in results.",
+    },
+    service: {
+      type: "string",
+      description: "Exact match on event.service (use to scope to a single service).",
+    },
+    session_id: {
+      type: "string",
+      description: "Exact match on event.session_id.",
+    },
+    run_id: {
+      type: "string",
+      description: "Exact match on event.run_id.",
+    },
+    types: {
+      type: "array",
+      items: { type: "string" },
+      description: "Only include events whose event.type is in this list.",
+    },
+    levels: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Only include events whose event.level is in this list (trace, debug, info, warn, error, fatal).",
+    },
+    contains: {
+      type: "string",
+      description:
+        "Case-insensitive substring match across event.message, event.type, event.session_id, and event.data JSON.",
+    },
+    query: {
+      type: "string",
+      description:
+        "Boolean search applied to event.message only. Supports AND/OR/NOT, parentheses, quotes, and implicit AND (e.g. \"timeout AND retry\"). Case-insensitive.",
+    },
+    since: {
+      type: "string",
+      description:
+        "Start time filter. Accepts ISO timestamps or relative durations like 15m/2h/1d. Also supports \"checkpoint\" to resume from the last saved checkpoint.",
+    },
+    until: {
+      type: "string",
+      description:
+        "End time filter. Accepts ISO timestamps or relative durations like 15m/2h/1d.",
+    },
+    limit: {
+      type: "number",
+      description:
+        "Maximum number of events to return (defaults to config.mcp.max_results).",
+    },
+    max_output_chars: {
+      type: "number",
+      description:
+        "Maximum total characters to return in the response payload (uses config.mcp.max_output_chars when omitted).",
+    },
+    max_message_chars: {
+      type: "number",
+      description: "Per-message cap; trims the message field only.",
+    },
+    format: {
+      type: "string",
+      enum: ["json", "text"],
+      description:
+        "Output format: json returns events; text returns formatted lines (use template to customize).",
+    },
+    fields: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "JSON projection of event fields to return. Allowed fields: id, ts, level, type, service, run_id, session_id, message, data, tags, trace_id, span_id, source. Dotted paths like data.rawPeak are supported (top-level segment must be allowed; arrays not supported).",
+    },
+    flatten: {
+      type: "boolean",
+      description:
+        "When true, dotted field paths are emitted as top-level keys (e.g. \"data.rawPeak\": 43). Defaults to false.",
+    },
+    template: {
+      type: "string",
+      description:
+        "Text format template when format is \"text\". Tokens like {ts}, {level}, {service}, {message} are replaced; dotted tokens like {data.rawPeak} are supported; unknown tokens become empty. Example: \"{ts}|{service}|{message}\".",
+    },
+    backends: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Restrict search to specific read backends by id or type (local, cloudwatch, k8s).",
+    },
+  },
+} as const;
+
+const BATCH_SCHEMA = {
+  type: "object",
+  description:
+    "Run multiple searches in parallel. Each search result is capped by mcp.max_output_chars; if exceeded, a warning is returned unless force=true. Each search can set max_message_chars for per-message trimming; warnings include avg/max message length.",
+  additionalProperties: false,
+  properties: {
+    searches: {
+      type: "array",
+      items: SEARCH_ITEM_SCHEMA,
+      description: "List of search parameter sets to execute in parallel.",
+    },
+    force: {
+      type: "boolean",
+      description: "Bypass output-size guard for all searches.",
+    },
+    config_path: {
+      type: "string",
+      description:
+        "Path to .guck.json or a directory containing it; overrides default config resolution.",
+    },
+  },
+  required: ["searches"],
 } as const;
 
 const VERSION_SCHEMA = {
@@ -159,6 +283,8 @@ const SESSIONS_SCHEMA = {
 
 const TAIL_SCHEMA = {
   type: "object",
+  description:
+    "Return recent events. Output is capped by mcp.max_output_chars; if exceeded, a warning is returned unless force=true. Use max_message_chars to trim message per event; warnings include avg/max message length.",
   additionalProperties: false,
   properties: {
     service: { type: "string" },
@@ -173,8 +299,7 @@ const TAIL_SCHEMA = {
     },
     max_message_chars: {
       type: "number",
-      description:
-        "Truncate event.message to this length before formatting (uses config.mcp.max_message_chars when omitted).",
+      description: "Per-message cap; trims the message field only.",
     },
     format: { type: "string", enum: ["json", "text"] },
     fields: { type: "array", items: { type: "string" } },
@@ -186,6 +311,10 @@ const TAIL_SCHEMA = {
     template: { type: "string" },
     backends: { type: "array", items: { type: "string" } },
     config_path: { type: "string" },
+    force: {
+      type: "boolean",
+      description: "Bypass output-size guard and return the full payload.",
+    },
   },
 } as const;
 
@@ -224,8 +353,16 @@ const buildText = (payload: unknown) => {
   };
 };
 
-const OUTPUT_LIMIT_WARNING =
-  "Output truncated to fit max_output_chars. Consider using fields/template or max_message_chars to reduce size.";
+const buildTextFromSerialized = (text: string) => {
+  return {
+    content: [
+      {
+        type: "text",
+        text,
+      },
+    ],
+  };
+};
 
 const normalizeMaxChars = (value: number | undefined): number | undefined => {
   if (value === undefined || value === null) {
@@ -246,59 +383,6 @@ const resolveMaxChars = (
   fallback: number | undefined,
 ): number | undefined => {
   return normalizeMaxChars(value ?? fallback);
-};
-
-const payloadLength = (payload: unknown): number => {
-  return JSON.stringify(payload, null, 2).length;
-};
-
-const limitPayloadItems = <T>(
-  items: T[],
-  maxOutputChars: number | undefined,
-  buildPayload: (items: T[], truncated: boolean, warning?: string) => unknown,
-  baseTruncated: boolean,
-): { items: T[]; truncated: boolean; warning?: string } => {
-  if (!maxOutputChars) {
-    return { items, truncated: baseTruncated };
-  }
-
-  const limited: T[] = [];
-  let truncated = baseTruncated;
-  let warning: string | undefined;
-
-  for (const item of items) {
-    const candidate = [...limited, item];
-    if (payloadLength(buildPayload(candidate, truncated, warning)) <= maxOutputChars) {
-      limited.push(item);
-      continue;
-    }
-    warning = OUTPUT_LIMIT_WARNING;
-    truncated = true;
-    if (payloadLength(buildPayload(limited, truncated, warning)) <= maxOutputChars) {
-      return { items: limited, truncated, warning };
-    }
-    while (limited.length > 0) {
-      limited.pop();
-      if (payloadLength(buildPayload(limited, truncated, warning)) <= maxOutputChars) {
-        return { items: limited, truncated, warning };
-      }
-    }
-    return { items: [], truncated: true, warning };
-  }
-
-  if (payloadLength(buildPayload(limited, truncated, warning)) <= maxOutputChars) {
-    return { items: limited, truncated, warning };
-  }
-
-  warning = OUTPUT_LIMIT_WARNING;
-  truncated = true;
-  while (limited.length > 0) {
-    limited.pop();
-    if (payloadLength(buildPayload(limited, truncated, warning)) <= maxOutputChars) {
-      return { items: limited, truncated, warning };
-    }
-  }
-  return { items: [], truncated: true, warning };
 };
 
 const resolveSince = (
@@ -353,8 +437,14 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
         {
           name: "guck.search",
           description:
-            "Search telemetry events with filters. Supports boolean message-only query (query), JSON field projection (fields), or text formatting with template (format: text + template). For large datasets, start with guck.stats to narrow time/backends and keep limit small; if truncated is true, refine scope before increasing limits.",
+            "Search telemetry events with filters. Supports boolean message-only query (query), JSON field projection (fields), or text formatting with template (format: text + template). Output is capped by mcp.max_output_chars; warning unless force=true. Use max_message_chars for per-message trimming; warnings include avg/max message length.",
           inputSchema: SEARCH_SCHEMA,
+        },
+        {
+          name: "guck.search_batch",
+          description:
+            "Run multiple searches in parallel. Each search result is output-capped; use force=true to bypass per-search guard. Supports per-item max_message_chars trimming.",
+          inputSchema: BATCH_SCHEMA,
         },
         {
           name: "guck.stats",
@@ -371,7 +461,7 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
         {
           name: "guck.tail",
           description:
-            "Return the most recent events (non-streaming). Supports message-only boolean query (query) and output formatting (format: json/text, fields, template).",
+            "Return the most recent events (non-streaming). Supports message-only boolean query (query) and output formatting (format: json/text, fields, template). Output is capped by mcp.max_output_chars; warning unless force=true. Use max_message_chars for per-message trimming; warnings include avg/max message length.",
           inputSchema: TAIL_SCHEMA,
         },
       ],
@@ -411,80 +501,187 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
           config.mcp.max_output_chars,
         );
         const redacted = result.events.map((event) => redactEvent(config, event));
-        const trimmed = maxMessageChars
-          ? redacted.map((event) => truncateEventMessage(event, maxMessageChars))
-          : redacted;
+        const messageStats = computeMessageStats(redacted);
+        const trimmed = trimEventsMessages(redacted, {
+          maxChars: maxMessageChars,
+          match: input.contains,
+        });
         if (input.format === "text") {
           const lines = trimmed.map((event) => formatEventText(event, input.template));
-          const limited = limitPayloadItems(
-            lines,
-            maxOutputChars,
-            (items, truncated, warning) => ({
-              format: "text",
-              lines: items,
-              truncated,
-              errors: result.errors,
-              warning,
-            }),
-            result.truncated,
-          );
-          return buildText({
+          const payload = {
             format: "text",
-            lines: limited.items,
-            truncated: limited.truncated,
+            lines,
+            truncated: result.truncated,
             errors: result.errors,
-            warning: limited.warning,
+          };
+          const guarded = guardPayload({
+            payload,
+            maxChars: maxOutputChars ?? Number.POSITIVE_INFINITY,
+            force: input.force,
+            format: "text",
+            itemCount: lines.length,
+            truncated: result.truncated,
+            avgMessageChars: messageStats.avgMessageChars,
+            maxMessageChars: messageStats.maxMessageChars,
+            errors: result.errors,
           });
+          return guarded.kind === "ok"
+            ? buildTextFromSerialized(guarded.serialized)
+            : buildText(guarded.warningPayload);
         }
         if (input.fields && input.fields.length > 0) {
           const projected = trimmed.map((event) =>
             projectEventFields(event, input.fields ?? [], { flatten: input.flatten }),
           );
-          const limited = limitPayloadItems(
-            projected,
-            maxOutputChars,
-            (items, truncated, warning) => ({
-              format: "json",
-              events: items,
-              truncated,
-              errors: result.errors,
-              warning,
-            }),
-            result.truncated,
-          );
-          return buildText({
+          const payload = {
             format: "json",
-            events: limited.items,
-            truncated: limited.truncated,
+            events: projected,
+            truncated: result.truncated,
             errors: result.errors,
-            warning: limited.warning,
+          };
+          const guarded = guardPayload({
+            payload,
+            maxChars: maxOutputChars ?? Number.POSITIVE_INFINITY,
+            force: input.force,
+            format: "json",
+            itemCount: projected.length,
+            truncated: result.truncated,
+            avgMessageChars: messageStats.avgMessageChars,
+            maxMessageChars: messageStats.maxMessageChars,
+            errors: result.errors,
           });
+          return guarded.kind === "ok"
+            ? buildTextFromSerialized(guarded.serialized)
+            : buildText(guarded.warningPayload);
         }
-        const limited = limitPayloadItems(
-          trimmed,
-          maxOutputChars,
-          (items, truncated, warning) => ({
-            format: "json",
-            events: items,
-            truncated,
-            errors: result.errors,
-            warning,
-          }),
-          result.truncated,
-        );
-        return buildText({
+        const payload = { format: "json", ...result, events: trimmed };
+        const guarded = guardPayload({
+          payload,
+          maxChars: maxOutputChars ?? Number.POSITIVE_INFINITY,
+          force: input.force,
           format: "json",
-          events: limited.items,
-          truncated: limited.truncated,
+          itemCount: trimmed.length,
+          truncated: result.truncated,
+          avgMessageChars: messageStats.avgMessageChars,
+          maxMessageChars: messageStats.maxMessageChars,
           errors: result.errors,
-          warning: limited.warning,
         });
+        return guarded.kind === "ok"
+          ? buildTextFromSerialized(guarded.serialized)
+          : buildText(guarded.warningPayload);
       } catch (error) {
         if (error instanceof Error && error.message.startsWith("Invalid query:")) {
           return buildText({ error: error.message, query: input.query });
         }
         throw error;
       }
+    }
+
+    if (request.params.name === "guck.search_batch") {
+      const input = (request.params.arguments ?? {}) as {
+        searches?: Array<GuckSearchParams & { id?: string }>;
+        force?: boolean;
+        config_path?: string;
+      };
+      const searches = input.searches ?? [];
+      const results = await Promise.all(
+        searches.map(async (search) => {
+          const { id, config_path: _ignored, force: _ignoredForce, ...filters } = search;
+          const withDefaults: GuckSearchParams = {
+            ...filters,
+            since: resolveSince(filters.since, config, storeDir),
+          };
+          try {
+            const result = await readSearch(config, rootDir, withDefaults);
+            const maxMessageChars = resolveMaxChars(
+              search.max_message_chars,
+              config.mcp.max_message_chars,
+            );
+            const maxOutputChars = resolveMaxChars(
+              search.max_output_chars,
+              config.mcp.max_output_chars,
+            );
+            const redacted = result.events.map((event) => redactEvent(config, event));
+            const messageStats = computeMessageStats(redacted);
+            const trimmed = trimEventsMessages(redacted, {
+              maxChars: maxMessageChars,
+              match: search.contains,
+            });
+            if (search.format === "text") {
+              const lines = trimmed.map((event) => formatEventText(event, search.template));
+              const payload = {
+                format: "text",
+                lines,
+                truncated: result.truncated,
+                errors: result.errors,
+              };
+              const guarded = guardPayload({
+                payload,
+                maxChars: maxOutputChars ?? Number.POSITIVE_INFINITY,
+                force: input.force,
+                format: "text",
+                itemCount: lines.length,
+                truncated: result.truncated,
+                avgMessageChars: messageStats.avgMessageChars,
+                maxMessageChars: messageStats.maxMessageChars,
+                errors: result.errors,
+              });
+              if (guarded.kind === "ok") {
+                return { id, ...payload };
+              }
+              return { id, ...(guarded.warningPayload as object) };
+            }
+            if (search.fields && search.fields.length > 0) {
+              const projected = trimmed.map((event) =>
+                projectEventFields(event, search.fields ?? [], { flatten: search.flatten }),
+              );
+              const payload = {
+                format: "json",
+                events: projected,
+                truncated: result.truncated,
+                errors: result.errors,
+              };
+              const guarded = guardPayload({
+                payload,
+                maxChars: maxOutputChars ?? Number.POSITIVE_INFINITY,
+                force: input.force,
+                format: "json",
+                itemCount: projected.length,
+                truncated: result.truncated,
+                avgMessageChars: messageStats.avgMessageChars,
+                maxMessageChars: messageStats.maxMessageChars,
+                errors: result.errors,
+              });
+              if (guarded.kind === "ok") {
+                return { id, ...payload };
+              }
+              return { id, ...(guarded.warningPayload as object) };
+            }
+            const payload = { format: "json", ...result, events: trimmed };
+            const guarded = guardPayload({
+              payload,
+              maxChars: maxOutputChars ?? Number.POSITIVE_INFINITY,
+              force: input.force,
+              format: "json",
+              itemCount: trimmed.length,
+              truncated: result.truncated,
+              avgMessageChars: messageStats.avgMessageChars,
+              maxMessageChars: messageStats.maxMessageChars,
+              errors: result.errors,
+            });
+            if (guarded.kind === "ok") {
+              return { id, ...payload };
+            }
+            return { id, ...(guarded.warningPayload as object) };
+          } catch (error) {
+            if (error instanceof Error && error.message.startsWith("Invalid query:")) {
+              return { id, error: error.message, query: search.query };
+            }
+            throw error;
+          }
+        }),
+      );
+      return buildText({ results });
     }
 
     if (request.params.name === "guck.stats") {
@@ -540,74 +737,73 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
         config.mcp.max_output_chars,
       );
       const redacted = result.events.map((event) => redactEvent(config, event));
-      const trimmed = maxMessageChars
-        ? redacted.map((event) => truncateEventMessage(event, maxMessageChars))
-        : redacted;
+      const messageStats = computeMessageStats(redacted);
+      const trimmed = trimEventsMessages(redacted, {
+        maxChars: maxMessageChars,
+      });
       if (input.format === "text") {
         const lines = trimmed.map((event) => formatEventText(event, input.template));
-        const limited = limitPayloadItems(
-          lines,
-          maxOutputChars,
-          (items, truncated, warning) => ({
-            format: "text",
-            lines: items,
-            truncated,
-            errors: result.errors,
-            warning,
-          }),
-          result.truncated,
-        );
-        return buildText({
+        const payload = {
           format: "text",
-          lines: limited.items,
-          truncated: limited.truncated,
+          lines,
+          truncated: result.truncated,
           errors: result.errors,
-          warning: limited.warning,
+        };
+        const guarded = guardPayload({
+          payload,
+          maxChars: maxOutputChars ?? Number.POSITIVE_INFINITY,
+          force: input.force,
+          format: "text",
+          itemCount: lines.length,
+          truncated: result.truncated,
+          avgMessageChars: messageStats.avgMessageChars,
+          maxMessageChars: messageStats.maxMessageChars,
+          errors: result.errors,
         });
+        return guarded.kind === "ok"
+          ? buildTextFromSerialized(guarded.serialized)
+          : buildText(guarded.warningPayload);
       }
       if (input.fields && input.fields.length > 0) {
         const projected = trimmed.map((event) =>
           projectEventFields(event, input.fields ?? [], { flatten: input.flatten }),
         );
-        const limited = limitPayloadItems(
-          projected,
-          maxOutputChars,
-          (items, truncated, warning) => ({
-            format: "json",
-            events: items,
-            truncated,
-            errors: result.errors,
-            warning,
-          }),
-          result.truncated,
-        );
-        return buildText({
+        const payload = {
           format: "json",
-          events: limited.items,
-          truncated: limited.truncated,
+          events: projected,
+          truncated: result.truncated,
           errors: result.errors,
-          warning: limited.warning,
+        };
+        const guarded = guardPayload({
+          payload,
+          maxChars: maxOutputChars ?? Number.POSITIVE_INFINITY,
+          force: input.force,
+          format: "json",
+          itemCount: projected.length,
+          truncated: result.truncated,
+          avgMessageChars: messageStats.avgMessageChars,
+          maxMessageChars: messageStats.maxMessageChars,
+          errors: result.errors,
         });
+        return guarded.kind === "ok"
+          ? buildTextFromSerialized(guarded.serialized)
+          : buildText(guarded.warningPayload);
       }
-      const limited = limitPayloadItems(
-        trimmed,
-        maxOutputChars,
-        (items, truncated, warning) => ({
-          format: "json",
-          events: items,
-          truncated,
-          errors: result.errors,
-          warning,
-        }),
-        result.truncated,
-      );
-      return buildText({
+      const payload = { format: "json", ...result, events: trimmed };
+      const guarded = guardPayload({
+        payload,
+        maxChars: maxOutputChars ?? Number.POSITIVE_INFINITY,
+        force: input.force,
         format: "json",
-        events: limited.items,
-        truncated: limited.truncated,
+        itemCount: trimmed.length,
+        truncated: result.truncated,
+        avgMessageChars: messageStats.avgMessageChars,
+        maxMessageChars: messageStats.maxMessageChars,
         errors: result.errors,
-        warning: limited.warning,
       });
+      return guarded.kind === "ok"
+        ? buildTextFromSerialized(guarded.serialized)
+        : buildText(guarded.warningPayload);
     }
 
     throw new Error(`Unknown tool: ${request.params.name}`);

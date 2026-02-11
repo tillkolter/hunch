@@ -23,7 +23,7 @@ const DEFAULT_CONFIG: GuckConfig = {
   mcp: {
     max_results: 200,
     default_lookback_ms: 300000,
-    max_output_chars: 0,
+    max_output_chars: 20000,
     max_message_chars: 0,
   },
 };
