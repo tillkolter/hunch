@@ -118,7 +118,7 @@ const SEARCH_SCHEMA = {
     config_path: {
       type: "string",
       description:
-        "Path to .guck.json or a directory containing it; overrides default config resolution.",
+        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
     },
     force: {
       type: "boolean",
@@ -241,7 +241,7 @@ const BATCH_SCHEMA = {
     config_path: {
       type: "string",
       description:
-        "Path to .guck.json or a directory containing it; overrides default config resolution.",
+        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
     },
   },
   required: ["searches"],
@@ -264,7 +264,11 @@ const STATS_SCHEMA = {
     group_by: { type: "string", enum: ["type", "level", "stage"] },
     limit: { type: "number" },
     backends: { type: "array", items: { type: "string" } },
-    config_path: { type: "string" },
+    config_path: {
+      type: "string",
+      description:
+        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+    },
   },
   required: ["group_by"],
 } as const;
@@ -277,7 +281,11 @@ const SESSIONS_SCHEMA = {
     since: { type: "string" },
     limit: { type: "number" },
     backends: { type: "array", items: { type: "string" } },
-    config_path: { type: "string" },
+    config_path: {
+      type: "string",
+      description:
+        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+    },
   },
 } as const;
 
@@ -310,7 +318,11 @@ const TAIL_SCHEMA = {
     },
     template: { type: "string" },
     backends: { type: "array", items: { type: "string" } },
-    config_path: { type: "string" },
+    config_path: {
+      type: "string",
+      description:
+        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+    },
     force: {
       type: "boolean",
       description: "Bypass output-size guard and return the full payload.",
@@ -437,31 +449,31 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
         {
           name: "guck.search",
           description:
-            "Search telemetry events with filters. Supports boolean message-only query (query), JSON field projection (fields), or text formatting with template (format: text + template). Output is capped by mcp.max_output_chars; warning unless force=true. Use max_message_chars for per-message trimming; warnings include avg/max message length.",
+            "Search telemetry events with filters. Supports boolean message-only query (query), JSON field projection (fields), or text formatting with template (format: text + template). Output is capped by mcp.max_output_chars; warning unless force=true. Use max_message_chars for per-message trimming; warnings include avg/max message length. Tip: Always pass config_path (absolute preferred). Relative paths resolve against the MCP server pwd, not the agent's PWD.",
           inputSchema: SEARCH_SCHEMA,
         },
         {
           name: "guck.search_batch",
           description:
-            "Run multiple searches in parallel. Each search result is output-capped; use force=true to bypass per-search guard. Supports per-item max_message_chars trimming.",
+            "Run multiple searches in parallel. Each search result is output-capped; use force=true to bypass per-search guard. Supports per-item max_message_chars trimming. Tip: Always pass config_path (absolute preferred). Relative paths resolve against the MCP server pwd, not the agent's PWD.",
           inputSchema: BATCH_SCHEMA,
         },
         {
           name: "guck.stats",
           description:
-            "Aggregate telemetry counts by type/level/stage. Use this first to scope time windows and backends before running guck.search.",
+            "Aggregate telemetry counts by type/level/stage. Use this first to scope time windows and backends before running guck.search. Tip: Always pass config_path (absolute preferred). Relative paths resolve against the MCP server pwd, not the agent's PWD.",
           inputSchema: STATS_SCHEMA,
         },
         {
           name: "guck.sessions",
           description:
-            "List recent sessions and error counts. Useful for finding a session_id to drill into with guck.search.",
+            "List recent sessions and error counts. Useful for finding a session_id to drill into with guck.search. Tip: Always pass config_path (absolute preferred). Relative paths resolve against the MCP server pwd, not the agent's PWD.",
           inputSchema: SESSIONS_SCHEMA,
         },
         {
           name: "guck.tail",
           description:
-            "Return the most recent events (non-streaming). Supports message-only boolean query (query) and output formatting (format: json/text, fields, template). Output is capped by mcp.max_output_chars; warning unless force=true. Use max_message_chars for per-message trimming; warnings include avg/max message length.",
+            "Return the most recent events (non-streaming). Supports message-only boolean query (query) and output formatting (format: json/text, fields, template). Output is capped by mcp.max_output_chars; warning unless force=true. Use max_message_chars for per-message trimming; warnings include avg/max message length. Tip: Always pass config_path (absolute preferred). Relative paths resolve against the MCP server pwd, not the agent's PWD.",
           inputSchema: TAIL_SCHEMA,
         },
       ],
