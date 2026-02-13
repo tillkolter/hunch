@@ -36,7 +36,7 @@
     "vite": "^5.0.0 || ^6.0.0"
   },
   "dependencies": {
-    "@guckdev/core": "0.1.0"
+    "@guckdev/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "25.2.2",

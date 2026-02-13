@@ -37,7 +37,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@guckdev/core": "0.1.0"
+    "@guckdev/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "25.2.2"

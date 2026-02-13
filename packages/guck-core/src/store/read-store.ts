@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { resolveStoreDir } from "../config.js";
 import {
@@ -29,14 +31,64 @@ type ResolvedBackends = {
   errors: BackendError[];
 };
 
+const isLegacyLocalDir = (raw: string): boolean => {
+  const normalized = raw.replace(/^[.][/]/, "");
+  return normalized === "logs/guck";
+};
+
+const expandHome = (raw: string): string => {
+  if (!raw.startsWith("~")) {
+    return raw;
+  }
+  const home = os.homedir();
+  if (raw === "~") {
+    return home;
+  }
+  if (raw.startsWith("~/")) {
+    return path.join(home, raw.slice(2));
+  }
+  return raw;
+};
+
+const hasJsonlFiles = (root: string): boolean => {
+  try {
+    if (!fs.existsSync(root)) {
+      return false;
+    }
+    const stack: string[] = [root];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) {
+        continue;
+      }
+      const entries = fs.readdirSync(current, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          stack.push(fullPath);
+        } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+          return true;
+        }
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 const resolveLocalDir = (rootDir: string, storeDir: string, dir?: string): string => {
   if (!dir) {
     return storeDir;
   }
-  if (path.isAbsolute(dir)) {
-    return dir;
+  const expanded = expandHome(dir);
+  const resolved = path.isAbsolute(expanded)
+    ? expanded
+    : path.join(rootDir, expanded);
+  if (isLegacyLocalDir(dir) && !hasJsonlFiles(resolved) && hasJsonlFiles(storeDir)) {
+    return storeDir;
   }
-  return path.join(rootDir, dir);
+  return resolved;
 };
 
 const resolveBackends = (config: GuckConfig, rootDir: string): ResolvedBackends => {

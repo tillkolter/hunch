@@ -7,8 +7,8 @@
     "url": "https://github.com/tillkolter/guck-mcp"
   },
   "scripts": {
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "build": "pnpm -r --sort build",
+    "test": "pnpm -r --sort test",
     "test:py": "cd packages/guck-py && uv run pytest",
     "spec:check": "node scripts/spec-coverage-check.mjs",
     "version:sync": "node scripts/sync-version.mjs",

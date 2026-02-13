@@ -84,13 +84,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build JS (tsc)
-        run: pnpm -r build
+        run: pnpm -r --sort build
 
       - name: Version check (VERSION sync)
         run: node scripts/version-check.mjs
 
       - name: Test JS (node --test)
-        run: pnpm -r test
+        run: pnpm -r --sort test
 
   py:
     name: "Python tests"
