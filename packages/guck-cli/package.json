@@ -4,7 +4,7 @@
   "description": "CLI for Guck telemetry capture and MCP",
   "repository": {
     "type": "git",
-    "url": "https://example.com/guck-repo"
+    "url": "https://github.com/tillkolter/guck-mcp"
   },
   "license": "MIT",
   "type": "module",
