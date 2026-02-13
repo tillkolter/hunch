@@ -3,46 +3,27 @@ import path from "node:path";
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const version = fs.readFileSync(path.join(root, "VERSION"), "utf8").trim();
+const PACKAGE_JSON = "package.json";
 
-const pkg = JSON.parse(
-  fs.readFileSync(path.join(root, "packages", "guck-js", "package.json"), "utf8"),
-);
-
-if (pkg.version !== version) {
-  throw new Error(
-    `Version mismatch: VERSION=${version} packages/guck-js/package.json=${pkg.version}`,
+const readPackage = (packagePath) => {
+  return JSON.parse(
+    fs.readFileSync(path.join(root, packagePath, PACKAGE_JSON), "utf8"),
   );
-}
+};
 
-const cliPkg = JSON.parse(
-  fs.readFileSync(path.join(root, "packages", "guck-cli", "package.json"), "utf8"),
-);
+const assertPackageVersion = (packagePath) => {
+  const pkg = readPackage(packagePath);
+  if (pkg.version !== version) {
+    throw new Error(
+      `Version mismatch: VERSION=${version} ${packagePath}/${PACKAGE_JSON}=${pkg.version}`,
+    );
+  }
+};
 
-if (cliPkg.version !== version) {
-  throw new Error(
-    `Version mismatch: VERSION=${version} packages/guck-cli/package.json=${cliPkg.version}`,
-  );
-}
-
-const corePkg = JSON.parse(
-  fs.readFileSync(path.join(root, "packages", "guck-core", "package.json"), "utf8"),
-);
-
-if (corePkg.version !== version) {
-  throw new Error(
-    `Version mismatch: VERSION=${version} packages/guck-core/package.json=${corePkg.version}`,
-  );
-}
-
-const mcpPkg = JSON.parse(
-  fs.readFileSync(path.join(root, "packages", "guck-mcp", "package.json"), "utf8"),
-);
-
-if (mcpPkg.version !== version) {
-  throw new Error(
-    `Version mismatch: VERSION=${version} packages/guck-mcp/package.json=${mcpPkg.version}`,
-  );
-}
+assertPackageVersion("packages/guck-js");
+assertPackageVersion("packages/guck-cli");
+assertPackageVersion("packages/guck-core");
+assertPackageVersion("packages/guck-mcp");
 
 const browserPkg = JSON.parse(
   fs.readFileSync(path.join(root, "packages", "guck-browser", "package.json"), "utf8"),

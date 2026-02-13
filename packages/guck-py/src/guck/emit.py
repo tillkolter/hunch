@@ -5,14 +5,14 @@ import os
 import sys
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .config import load_config, resolve_store_dir
 from .redact import redact_event
 from .schema import GuckEvent, GuckLevel
 from .store import append_event
 
-_cached: Optional[Dict[str, Any]] = None
+_cached: dict[str, Any] | None = None
 _write_disabled = False
 _warned = False
 
@@ -25,7 +25,7 @@ def _now_iso() -> str:
     return now.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def _normalize_level(level: Optional[str]) -> GuckLevel:
+def _normalize_level(level: str | None) -> GuckLevel:
     if not level:
         return "info"
     lower = level.lower()
@@ -34,13 +34,13 @@ def _normalize_level(level: Optional[str]) -> GuckLevel:
     return "info"
 
 
-def _coalesce(input_event: Dict[str, Any], key: str, default: Any) -> Any:
+def _coalesce(input_event: dict[str, Any], key: str, default: Any) -> Any:
     if key in input_event and input_event[key] is not None:
         return input_event[key]
     return default
 
 
-def _to_event(input_event: Dict[str, Any], defaults: Dict[str, str]) -> GuckEvent:
+def _to_event(input_event: dict[str, Any], defaults: dict[str, str]) -> GuckEvent:
     event: GuckEvent = {
         "id": _coalesce(input_event, "id", str(uuid.uuid4())),
         "ts": _coalesce(input_event, "ts", _now_iso()),
@@ -69,7 +69,7 @@ def _to_event(input_event: Dict[str, Any], defaults: Dict[str, str]) -> GuckEven
     return event
 
 
-def _get_cached() -> Dict[str, Any]:
+def _get_cached() -> dict[str, Any]:
     global _cached
     if _cached is not None:
         return _cached
@@ -79,7 +79,7 @@ def _get_cached() -> Dict[str, Any]:
     return _cached
 
 
-def emit(input_event: Dict[str, Any]) -> None:
+def emit(input_event: dict[str, Any]) -> None:
     global _write_disabled, _warned
     if _write_disabled:
         return

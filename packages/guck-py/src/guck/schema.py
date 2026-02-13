@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 GuckLevel = Literal["trace", "debug", "info", "warn", "error", "fatal"]
 
@@ -22,8 +22,8 @@ class GuckEvent(TypedDict, total=False):
     run_id: str
     session_id: str
     message: str
-    data: Dict[str, Any]
-    tags: Dict[str, str]
+    data: dict[str, Any]
+    tags: dict[str, str]
     trace_id: str
     span_id: str
     source: GuckSource

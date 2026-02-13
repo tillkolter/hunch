@@ -10,8 +10,8 @@ const internalPackages = new Set([
   "@guckdev/core",
   "@guckdev/mcp",
   "@guckdev/cli",
-  "@guckdev/browser",
 ]);
+const PACKAGE_JSON = "package.json";
 
 const updateJsonVersion = (filePath) => {
   const raw = fs.readFileSync(filePath, "utf8");
@@ -44,10 +44,10 @@ const updateJsonVersion = (filePath) => {
   }
 };
 
-updateJsonVersion(path.join(root, "package.json"));
-updateJsonVersion(path.join(root, "packages", "guck-js", "package.json"));
-updateJsonVersion(path.join(root, "packages", "guck-cli", "package.json"));
-updateJsonVersion(path.join(root, "packages", "guck-core", "package.json"));
-updateJsonVersion(path.join(root, "packages", "guck-mcp", "package.json"));
-updateJsonVersion(path.join(root, "packages", "guck-browser", "package.json"));
-updateJsonVersion(path.join(root, "packages", "guck-vite", "package.json"));
+updateJsonVersion(path.join(root, PACKAGE_JSON));
+updateJsonVersion(path.join(root, "packages", "guck-js", PACKAGE_JSON));
+updateJsonVersion(path.join(root, "packages", "guck-cli", PACKAGE_JSON));
+updateJsonVersion(path.join(root, "packages", "guck-core", PACKAGE_JSON));
+updateJsonVersion(path.join(root, "packages", "guck-mcp", PACKAGE_JSON));
+updateJsonVersion(path.join(root, "packages", "guck-browser", PACKAGE_JSON));
+updateJsonVersion(path.join(root, "packages", "guck-vite", PACKAGE_JSON));

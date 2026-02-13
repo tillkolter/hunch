@@ -91,7 +91,7 @@ def test_emit_contract(test_case, tmp_path, monkeypatch):
     assert len(files) == 1, "expected one JSONL file"
 
     content = files[0].read_text(encoding="utf-8").strip()
-    line = [entry for entry in content.splitlines() if entry][0]
+    line = next(entry for entry in content.splitlines() if entry)
     event = json.loads(line)
 
     _assert_event_matches(event, test_case)

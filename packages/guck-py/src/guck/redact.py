@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from .schema import GuckConfig, GuckEvent
 
@@ -12,13 +13,19 @@ def _normalize_key_set(keys: Iterable[str]) -> set[str]:
     return {key.strip().lower() for key in keys if key.strip()}
 
 
+def _compile_pattern(pattern: str) -> re.Pattern[str] | None:
+    try:
+        return re.compile(pattern, re.IGNORECASE)
+    except re.error:
+        return None
+
+
 def _compile_patterns(patterns: Iterable[str]) -> list[re.Pattern[str]]:
     compiled: list[re.Pattern[str]] = []
     for pattern in patterns:
-        try:
-            compiled.append(re.compile(pattern, re.IGNORECASE))
-        except re.error:
-            continue
+        compiled_pattern = _compile_pattern(pattern)
+        if compiled_pattern:
+            compiled.append(compiled_pattern)
     return compiled
 
 
@@ -39,7 +46,7 @@ def _redact_value(value: Any, key_set: set[str], patterns: list[re.Pattern[str]]
     if isinstance(value, list):
         return [_redact_value(entry, key_set, patterns) for entry in value]
     if isinstance(value, dict):
-        next_value: Dict[str, Any] = {}
+        next_value: dict[str, Any] = {}
         for key, entry in value.items():
             if key.lower() in key_set:
                 next_value[key] = _REDACTED_VALUE

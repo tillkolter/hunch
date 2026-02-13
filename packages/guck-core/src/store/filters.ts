@@ -36,32 +36,17 @@ export const eventMatches = (
   sinceMs?: number,
   untilMs?: number,
 ): boolean => {
-  if (params.service && event.service !== params.service) {
-    return false;
-  }
-  if (params.session_id && event.session_id !== params.session_id) {
-    return false;
-  }
-  if (params.run_id && event.run_id !== params.run_id) {
-    return false;
-  }
-  if (params.types && params.types.length > 0 && !params.types.includes(event.type)) {
-    return false;
-  }
-  if (params.levels && params.levels.length > 0 && !params.levels.includes(event.level)) {
-    return false;
-  }
-  if (params.contains && !matchesContains(event, params.contains)) {
-    return false;
-  }
   const ts = getEventTimestamp(event);
-  if (sinceMs !== undefined && ts !== undefined && ts < sinceMs) {
-    return false;
-  }
-  if (untilMs !== undefined && ts !== undefined && ts > untilMs) {
-    return false;
-  }
-  return true;
+  return !(
+    (params.service && event.service !== params.service) ||
+    (params.session_id && event.session_id !== params.session_id) ||
+    (params.run_id && event.run_id !== params.run_id) ||
+    (params.types && params.types.length > 0 && !params.types.includes(event.type)) ||
+    (params.levels && params.levels.length > 0 && !params.levels.includes(event.level)) ||
+    (params.contains && !matchesContains(event, params.contains)) ||
+    (sinceMs !== undefined && ts !== undefined && ts < sinceMs) ||
+    (untilMs !== undefined && ts !== undefined && ts > untilMs)
+  );
 };
 
 export const normalizeLevel = (level?: string): GuckLevel | undefined => {

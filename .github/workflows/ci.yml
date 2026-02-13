@@ -30,6 +30,38 @@ jobs:
       - name: Spec coverage check
         run: pnpm run spec:check
 
+  lint:
+    name: "Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@9.12.3 --activate
+
+      - name: Install JS deps (pnpm install)
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Lint (eslint + ruff)
+        run: pnpm lint
+
   js:
     name: "JS build + tests"
     runs-on: ubuntu-latest

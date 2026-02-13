@@ -51,7 +51,7 @@ test("auto-capture console + unhandledrejection", async () => {
         return;
       }
       const index = list.indexOf(handler);
-      if (index >= 0) {
+      if (index !== -1) {
         list.splice(index, 1);
       }
     },

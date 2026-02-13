@@ -3,7 +3,7 @@ from __future__ import annotations
 import atexit
 import os
 import sys
-from typing import Optional
+from contextlib import suppress
 
 from .config import load_config
 from .emit import emit
@@ -53,7 +53,7 @@ class _CapturedStream:
         return getattr(self._stream, name)
 
 
-_installed: Optional[StopHandle] = None
+_installed: StopHandle | None = None
 
 
 def _should_capture() -> bool:
@@ -121,10 +121,8 @@ def install_auto_capture() -> StopHandle:
             sys.stdout = original_stdout
         if sdk.get("capture_stderr"):
             sys.stderr = original_stderr
-        try:
+        with suppress(AttributeError):
             atexit.unregister(flush)
-        except AttributeError:
-            pass
         _installed = None
 
     atexit.register(flush)

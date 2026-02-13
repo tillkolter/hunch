@@ -15,7 +15,7 @@ const compilePatterns = (patterns: string[]): RegExp[] => {
         return null;
       }
     })
-    .filter((pattern): pattern is RegExp => Boolean(pattern));
+    .filter((pattern): pattern is RegExp => pattern !== null);
 };
 
 const redactString = (value: string, patterns: RegExp[]): string => {
@@ -50,11 +50,9 @@ const redactValue = (
   if (typeof value === "object") {
     const next: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      if (keySet.has(key.toLowerCase())) {
-        next[key] = REDACTED_VALUE;
-      } else {
-        next[key] = redactValue(entry, keySet, patterns);
-      }
+      next[key] = keySet.has(key.toLowerCase())
+        ? REDACTED_VALUE
+        : redactValue(entry, keySet, patterns);
     }
     return next;
   }

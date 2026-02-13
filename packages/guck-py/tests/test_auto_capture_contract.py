@@ -14,9 +14,7 @@ SRC_ROOT = PACKAGE_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-CASES = json.loads(
-    (REPO_ROOT / "specs" / "auto_capture_cases.json").read_text(encoding="utf-8")
-)
+CASES = json.loads((REPO_ROOT / "specs" / "auto_capture_cases.json").read_text(encoding="utf-8"))
 UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
     re.IGNORECASE,
@@ -81,7 +79,7 @@ def test_auto_capture_contract(test_case, tmp_path, monkeypatch):
 
     assert len(files) == 1, "expected one JSONL file"
     content = files[0].read_text(encoding="utf-8").strip()
-    line = [entry for entry in content.splitlines() if entry][0]
+    line = next(entry for entry in content.splitlines() if entry)
     event = json.loads(line)
 
     expected = test_case.get("expect", {})

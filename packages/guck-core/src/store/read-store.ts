@@ -108,15 +108,9 @@ const filterBackends = (
     return entries;
   }
   const filterSet = new Set(filters);
-  return entries.filter((entry) => {
-    if (entry.id && filterSet.has(entry.id)) {
-      return true;
-    }
-    if (filterSet.has(entry.type)) {
-      return true;
-    }
-    return false;
-  });
+  return entries.filter(
+    (entry) => (entry.id && filterSet.has(entry.id)) || filterSet.has(entry.type),
+  );
 };
 
 const sortEventsDesc = (events: GuckEvent[]): GuckEvent[] => {

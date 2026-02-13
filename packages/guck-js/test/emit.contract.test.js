@@ -122,7 +122,7 @@ for (const testCase of cases) {
     const files = collectJsonlFiles(storeDir);
     assert.equal(files.length, 1, "expected one JSONL file");
     const content = fs.readFileSync(files[0], "utf8").trim();
-    const line = content.split(/\r?\n/).filter(Boolean)[0];
+    const line = content.split(/\r?\n/).find(Boolean);
     assert.ok(line, "expected JSONL content");
     const event = JSON.parse(line);
 

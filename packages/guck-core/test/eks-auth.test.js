@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { buildEksToken } from "../dist/store/backends/eks-auth.js";
 
 const decodeBase64Url = (value) => {
-  let normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  let normalized = value.replaceAll("-", "+").replaceAll("_", "/");
   while (normalized.length % 4 !== 0) {
     normalized += "=";
   }
@@ -38,4 +38,3 @@ test("buildEksToken uses presigned GetCallerIdentity URL", async (t) => {
     throw error;
   }
 });
-

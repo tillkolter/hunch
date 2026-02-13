@@ -9,7 +9,14 @@ type WriteTarget = {
   level: GuckEvent["level"];
 };
 
-type WriteFn = typeof process.stdout.write;
+type WriteChunk = string | Uint8Array;
+type WriteCallback = (error?: Error | null) => void;
+type WriteEncoding = NodeJS.BufferEncoding | WriteCallback;
+type WriteFn = (
+  chunk: WriteChunk,
+  encoding?: WriteEncoding,
+  callback?: WriteCallback,
+) => boolean;
 
 type CaptureState = {
   stop: () => void;
@@ -47,13 +54,15 @@ const installCaptureFor = (
   target: WriteTarget,
   bufferRef: { value: string },
 ): WriteFn => {
-  const original = target.stream.write.bind(target.stream);
-  const patched: WriteFn = (chunk: any, encoding?: any, cb?: any) => {
-    const result = original(chunk, encoding as any, cb as any);
-    const resolvedEncoding: BufferEncoding =
-      typeof encoding === "string" ? (encoding as BufferEncoding) : "utf8";
+  const original = target.stream.write.bind(target.stream) as WriteFn;
+  const patched: WriteFn = (chunk, encoding, callback) => {
+    const resolvedCallback = typeof encoding === "function" ? encoding : callback;
+    const resolvedEncoding = typeof encoding === "string" ? encoding : undefined;
+    const result = original(chunk, resolvedEncoding, resolvedCallback);
+    const textEncoding: NodeJS.BufferEncoding =
+      typeof encoding === "string" ? encoding : "utf8";
     const text = Buffer.isBuffer(chunk)
-      ? chunk.toString(resolvedEncoding)
+      ? chunk.toString(textEncoding)
       : String(chunk);
     bufferRef.value += text;
     const lines = bufferRef.value.split(/\r?\n/);
@@ -111,7 +120,9 @@ export const installAutoCapture = (): StopHandle => {
     }
   };
 
-  const beforeExit = () => flush();
+  const beforeExit = (): void => {
+    flush();
+  };
 
   process.on("beforeExit", beforeExit);
   process.on("exit", beforeExit);

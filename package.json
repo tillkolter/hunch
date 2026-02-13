@@ -13,23 +13,43 @@
     "spec:check": "node scripts/spec-coverage-check.mjs",
     "version:sync": "node scripts/sync-version.mjs",
     "version:check": "node scripts/version-check.mjs",
-    "release": "semantic-release"
+    "release": "semantic-release",
+    "lint": "pnpm lint:js && pnpm lint:py",
+    "lint:js": "eslint . --cache --max-warnings 0 --report-unused-disable-directives",
+    "lint:fix": "eslint . --cache --fix",
+    "lint:py": "cd packages/guck-py && uv run --extra dev ruff check .",
+    "lint:py:fix": "cd packages/guck-py && uv run --extra dev ruff check --fix .",
+    "format": "pnpm format:js && pnpm format:py",
+    "format:check": "pnpm format:check:js && pnpm format:check:py",
+    "format:js": "prettier --write .",
+    "format:check:js": "prettier --check .",
+    "format:py": "cd packages/guck-py && uv run --extra dev ruff format .",
+    "format:check:py": "cd packages/guck-py && uv run --extra dev ruff format --check ."
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@semantic-release/commit-analyzer": "^12.0.0",
     "@semantic-release/exec": "^6.0.0",
     "@semantic-release/github": "^10.0.0",
     "@semantic-release/release-notes-generator": "^13.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-sonarjs": "^1.0.0",
+    "eslint-plugin-unicorn": "^56.0.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.0.0",
     "semantic-release": "^24.0.0",
     "typescript": "5.6.3"
   },
   "pnpm": {
     "overrides": {
-    "@guckdev/sdk": "workspace:*",
-    "@guckdev/core": "workspace:*",
-    "@guckdev/mcp": "workspace:*",
-    "@guckdev/browser": "workspace:*",
-    "@guckdev/vite": "workspace:*"
+      "@guckdev/sdk": "workspace:*",
+      "@guckdev/core": "workspace:*",
+      "@guckdev/mcp": "workspace:*",
+      "@guckdev/browser": "workspace:*",
+      "@guckdev/vite": "workspace:*"
+    }
   }
-}
 }

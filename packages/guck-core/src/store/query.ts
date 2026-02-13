@@ -75,7 +75,7 @@ const tokenize = (input: string): { ok: true; tokens: Token[] } | { ok: false; e
         i += 1;
       }
       if (escaped || input[i - 1] !== "\"") {
-        return { ok: false, error: `Unterminated quote at position ${start}` };
+        return { ok: false, error: `Unterminated quote at position ${String(start)}` };
       }
       tokens.push({ type: "phrase", value, pos: start });
       continue;
@@ -97,7 +97,7 @@ const tokenize = (input: string): { ok: true; tokens: Token[] } | { ok: false; e
       i += 1;
     }
     if (!value) {
-      return { ok: false, error: `Unexpected character at position ${start}` };
+      return { ok: false, error: `Unexpected character at position ${String(start)}` };
     }
     const upper = value.toUpperCase();
     if (upper === "AND") {
@@ -126,7 +126,9 @@ class Parser {
     if (!this.isAtEnd()) {
       const token = this.peek();
       const display = token?.value ?? token?.type ?? "unknown";
-      throw new Error(`Unexpected token "${display}" at position ${token?.pos ?? 0}`);
+      throw new Error(
+        `Unexpected token "${display}" at position ${String(token?.pos ?? 0)}`,
+      );
     }
     return expr;
   }
@@ -171,7 +173,7 @@ class Parser {
       const expr = this.parseOr();
       if (!this.match("rparen")) {
         const token = this.peek();
-        throw new Error(`Expected ")" at position ${token?.pos ?? 0}`);
+        throw new Error(`Expected ")" at position ${String(token?.pos ?? 0)}`);
       }
       return expr;
     }
@@ -183,7 +185,9 @@ class Parser {
       return { type: "term", value: (token.value ?? "").toLowerCase() };
     }
     const display = token.value ?? token.type;
-    throw new Error(`Expected term at position ${token.pos}, found "${display}"`);
+    throw new Error(
+      `Expected term at position ${String(token.pos)}, found "${display}"`,
+    );
   }
 
   private match(type: TokenType): boolean {

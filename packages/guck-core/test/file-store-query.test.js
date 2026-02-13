@@ -66,8 +66,8 @@ test("searchEvents applies query to message only", async () => {
     query: "foo",
     contains: "bar",
   });
-  const combinedIds = combined.events.map((event) => event.id);
-  assert.ok(combinedIds.includes("1"));
-  assert.ok(combinedIds.includes("2"));
-  assert.ok(!combinedIds.includes("3"), "query must also match");
+  const combinedIds = new Set(combined.events.map((event) => event.id));
+  assert.ok(combinedIds.has("1"));
+  assert.ok(combinedIds.has("2"));
+  assert.ok(!combinedIds.has("3"), "query must also match");
 });

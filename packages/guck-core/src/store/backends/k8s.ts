@@ -210,7 +210,7 @@ const toEvent = (
   }
 
   try {
-    const parsed = JSON.parse(trimmed);
+    const parsed: unknown = JSON.parse(trimmed);
     if (!parsed || typeof parsed !== "object") {
       return fallback;
     }
@@ -254,7 +254,7 @@ const toEvent = (
   }
 };
 
-const requireModule = createRequire(import.meta.url);
+const requireModule: (id: string) => unknown = createRequire(import.meta.url);
 
 type KubeConfigUserExec = {
   command?: string;
@@ -307,7 +307,10 @@ const loadKubeModule = (): {
 } => {
   let module: { KubeConfig: new () => KubeConfigLike; CoreV1Api: new () => unknown };
   try {
-    module = requireModule("@kubernetes/client-node");
+    module = requireModule("@kubernetes/client-node") as {
+      KubeConfig: new () => KubeConfigLike;
+      CoreV1Api: new () => unknown;
+    };
   } catch {
     throw new Error(
       "Kubernetes backend requires @kubernetes/client-node. Install it to enable this backend.",
@@ -665,7 +668,7 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
       const { kc, CoreV1Api } = loadKubeConfig(config.context);
       const eksConfig = resolveEksConfig(kc);
       if (!eksConfig) {
-        client = kc.makeApiClient(CoreV1Api) as unknown as K8sClient;
+        client = kc.makeApiClient(CoreV1Api) as K8sClient;
         tokenExpiresAtMs = null;
         return client;
       }
@@ -684,7 +687,7 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
         namespace: clusterInfo.namespace,
         token: tokenResult.token,
       });
-      client = tokenConfig.makeApiClient(CoreV1Api) as unknown as K8sClient;
+      client = tokenConfig.makeApiClient(CoreV1Api) as K8sClient;
       tokenExpiresAtMs = tokenResult.expiresAtMs;
       return client;
     })().finally(() => {
@@ -764,7 +767,7 @@ export const createK8sBackend = (config: GuckK8sReadBackendConfig): ReadBackend 
       } else if (params.group_by === "level") {
         key = event.level;
       } else if (params.group_by === "stage") {
-        const stage = (event.data as Record<string, unknown> | undefined)?.stage;
+        const stage = event.data?.stage;
         key = typeof stage === "string" ? stage : "unknown";
       }
       buckets.set(key, (buckets.get(key) ?? 0) + 1);

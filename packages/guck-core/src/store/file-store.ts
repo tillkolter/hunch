@@ -61,7 +61,7 @@ const collectFiles = async (root: string, service?: string): Promise<string[]> =
 
 const readJsonLines = async (
   filePath: string,
-  onEvent: (event: GuckEvent) => boolean | void,
+  onEvent: (event: GuckEvent) => boolean | undefined,
 ): Promise<void> => {
   const stream = fs.createReadStream(filePath, { encoding: "utf8" });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
@@ -176,7 +176,7 @@ export const statsEvents = async (
       } else if (params.group_by === "level") {
         key = event.level;
       } else if (params.group_by === "stage") {
-        const stage = (event.data as Record<string, unknown> | undefined)?.stage;
+        const stage = event.data?.stage;
         key = typeof stage === "string" ? stage : "unknown";
       }
       buckets.set(key, (buckets.get(key) ?? 0) + 1);

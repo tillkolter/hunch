@@ -44,7 +44,7 @@ const getValueAtPath = (value: unknown, path: string[]): unknown => {
     if (!Object.prototype.hasOwnProperty.call(current, segment)) {
       return undefined;
     }
-    current = (current as Record<string, unknown>)[segment];
+    current = current[segment];
   }
   return current;
 };
@@ -142,8 +142,8 @@ export const projectEventFields = (
 };
 
 const applyTemplate = (event: GuckEvent, template: string): string => {
-  return template.replace(/\{([a-zA-Z0-9_.]+)\}/g, (_match, token) => {
-    const path = splitPath(token);
+  return template.replaceAll(/\{([a-zA-Z0-9_.]+)\}/g, (_match, token) => {
+    const path = splitPath(String(token));
     if (!path || path.length === 0) {
       return "";
     }

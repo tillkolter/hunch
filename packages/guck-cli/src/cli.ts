@@ -16,6 +16,8 @@ import { GuckEvent, GuckLevel } from "@guckdev/core";
 import { emit } from "@guckdev/sdk";
 import { startMcpServer } from "@guckdev/mcp";
 
+const CLI_PACKAGE = "@guckdev/cli";
+
 const printHelp = (): void => {
   console.log(
     `Guck - MCP-first telemetry\n\nCommands:\n  init                 Create .guck.json and .guck.local.json\n  checkpoint           Write a .guck-checkpoint epoch timestamp\n  wrap --service <s> --session <id> -- <cmd...>\n                       Capture stdout/stderr and write JSONL\n  emit --service <s> --session <id>\n                       Read JSON events from stdin and append\n  mcp                  Start MCP server\n  upgrade [--manager <npm|pnpm|yarn|bun>]\n                       Update the @guckdev/cli install\n\nOptions:\n  --version, -v        Print version\n`,
@@ -156,14 +158,14 @@ const getPackageManagerCandidates = (): PackageManagerName[] => {
 const buildUpgradeArgs = (manager: PackageManagerName): string[] => {
   switch (manager) {
     case "pnpm":
-      return ["add", "-g", "@guckdev/cli"];
+      return ["add", "-g", CLI_PACKAGE];
     case "yarn":
-      return ["global", "add", "@guckdev/cli"];
+      return ["global", "add", CLI_PACKAGE];
     case "bun":
-      return ["add", "-g", "@guckdev/cli"];
+      return ["add", "-g", CLI_PACKAGE];
     case "npm":
     default:
-      return ["install", "-g", "@guckdev/cli"];
+      return ["install", "-g", CLI_PACKAGE];
   }
 };
 
@@ -330,7 +332,9 @@ const handleWrap = async (argv: string[]): Promise<number> => {
     console.log("Guck disabled via config/env; running command without capture.");
     const child = spawn(rest[0], rest.slice(1), { stdio: "inherit" });
     return new Promise((resolve) => {
-      child.on("exit", (code: number | null) => resolve(code ?? 0));
+      child.on("exit", (code: number | null) => {
+        resolve(code ?? 0);
+      });
     });
   }
 
@@ -359,7 +363,9 @@ const handleWrap = async (argv: string[]): Promise<number> => {
   }
 
   return new Promise((resolve) => {
-    child.on("exit", (code: number | null) => resolve(code ?? 0));
+    child.on("exit", (code: number | null) => {
+      resolve(code ?? 0);
+    });
   });
 };
 
@@ -369,7 +375,7 @@ const parseJsonInput = (input: string): unknown[] => {
     return [];
   }
   try {
-    const parsed = JSON.parse(trimmed);
+    const parsed: unknown = JSON.parse(trimmed);
     if (Array.isArray(parsed)) {
       return parsed;
     }
@@ -392,7 +398,9 @@ const handleEmit = async (argv: string[]): Promise<number> => {
     process.stdin.on("data", (chunk: string) => {
       buffer += chunk;
     });
-    process.stdin.on("end", () => resolve(buffer));
+    process.stdin.on("end", () => {
+      resolve(buffer);
+    });
   });
 
   let items: unknown[] = [];
@@ -572,8 +580,9 @@ const main = async (): Promise<void> => {
     const storeDir = resolveStoreDir(config, rootDir);
     const checkpointPath = resolveCheckpointPath(storeDir);
     const value = Date.now();
-    fs.writeFileSync(checkpointPath, `${value}\n`, "utf8");
-    process.stdout.write(`${value}\n`);
+    const valueText = `${String(value)}\n`;
+    fs.writeFileSync(checkpointPath, valueText, "utf8");
+    process.stdout.write(valueText);
     return;
   }
 
@@ -593,7 +602,7 @@ const main = async (): Promise<void> => {
   process.exitCode = 1;
 };
 
-main().catch((error) => {
+main().catch((error: unknown) => {
   console.error(error);
   process.exitCode = 1;
 });

@@ -46,7 +46,7 @@ const inferLevel = (message?: string): "fatal" | "error" | "warn" | "info" | "de
 const deriveService = (logGroup: string): string => {
   const trimmed = logGroup.trim();
   const parts = trimmed.split("/");
-  const last = parts[parts.length - 1];
+  const last = parts.at(-1);
   return last && last.length > 0 ? last : trimmed;
 };
 
@@ -157,7 +157,7 @@ const toEvent = (
   }
 
   try {
-    const parsed = JSON.parse(trimmed);
+    const parsed: unknown = JSON.parse(trimmed);
     if (!parsed || typeof parsed !== "object") {
       return fallback;
     }
@@ -204,7 +204,7 @@ const loadSdk = (): {
   }) => unknown;
 } => {
   try {
-    return requireModule("@aws-sdk/client-cloudwatch-logs");
+    return requireModule("@aws-sdk/client-cloudwatch-logs") as ReturnType<typeof loadSdk>;
   } catch {
     throw new Error(
       "CloudWatch backend requires @aws-sdk/client-cloudwatch-logs. Install it to enable this backend.",
@@ -214,7 +214,9 @@ const loadSdk = (): {
 
 const loadCredentialProviders = (): { fromIni: (input: { profile: string }) => unknown } => {
   try {
-    return requireModule("@aws-sdk/credential-providers");
+    return requireModule(
+      "@aws-sdk/credential-providers",
+    ) as ReturnType<typeof loadCredentialProviders>;
   } catch {
     throw new Error(
       "CloudWatch backend requires @aws-sdk/credential-providers when using profile override.",
@@ -241,7 +243,7 @@ export const createCloudWatchBackend = (
       credentials,
     });
     client = {
-      send: (command) => sdkClient.send(command as unknown),
+      send: (command) => sdkClient.send(command),
     };
     return { client, FilterLogEventsCommand };
   };
@@ -311,7 +313,7 @@ export const createCloudWatchBackend = (
       } else if (params.group_by === "level") {
         key = event.level;
       } else if (params.group_by === "stage") {
-        const stage = (event.data as Record<string, unknown> | undefined)?.stage;
+        const stage = event.data?.stage;
         key = typeof stage === "string" ? stage : "unknown";
       }
       buckets.set(key, (buckets.get(key) ?? 0) + 1);

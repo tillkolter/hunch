@@ -79,7 +79,7 @@ const randomId = (): string => {
 };
 
 const serializeError = (value: unknown): ErrorPayload | undefined => {
-  if (!value) {
+  if (value === null || value === undefined) {
     return undefined;
   }
   if (value instanceof Error) {
@@ -97,7 +97,20 @@ const serializeError = (value: unknown): ErrorPayload | undefined => {
       stack: typeof record.stack === "string" ? record.stack : undefined,
     };
   }
-  return { message: String(value) };
+  if (typeof value === "function") {
+    const functionName = value.name ? ` ${value.name}` : "";
+    return { message: `[Function${functionName}]` };
+  }
+  if (typeof value === "symbol") {
+    return { message: value.description ?? value.toString() };
+  }
+  if (typeof value === "string") {
+    return { message: value };
+  }
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return { message: String(value) };
+  }
+  return { message: "Unknown error" };
 };
 
 const toSerializable = (value: unknown, seen: WeakSet<object>): unknown => {
@@ -114,7 +127,8 @@ const toSerializable = (value: unknown, seen: WeakSet<object>): unknown => {
     return value.toString();
   }
   if (typeof value === "function") {
-    return `[Function${value.name ? ` ${value.name}` : ""}]`;
+    const functionName = value.name ? ` ${value.name}` : "";
+    return `[Function${functionName}]`;
   }
   if (typeof value !== "object") {
     return value;
@@ -141,14 +155,15 @@ const formatArg = (value: unknown): string => {
     return value.stack ?? value.message;
   }
   try {
-    return JSON.stringify(toSerializable(value, new WeakSet<object>())) ?? "";
+    const seen: WeakSet<object> = new WeakSet();
+    return JSON.stringify(toSerializable(value, seen)) ?? "";
   } catch {
     return String(value);
   }
 };
 
 const formatArgs = (args: unknown[]): string => {
-  if (!args.length) {
+  if (args.length === 0) {
     return "";
   }
   return args.map((arg) => formatArg(arg)).join(" ");
@@ -201,10 +216,7 @@ const isProdBuild = (): boolean => {
   if (typeof nodeEnv === "string") {
     return nodeEnv === "production";
   }
-  const meta =
-    typeof import.meta !== "undefined"
-      ? (import.meta as { env?: Record<string, unknown> }).env
-      : undefined;
+  const meta = (import.meta as { env?: Record<string, unknown> }).env;
   if (meta && typeof meta.PROD === "boolean") {
     return meta.PROD;
   }
@@ -266,14 +278,14 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
     });
 
     if (!response.ok) {
-      throw new Error(`[guck] HTTP ${response.status} ${response.statusText}`);
+      throw new Error(`[guck] HTTP ${String(response.status)} ${response.statusText}`);
     }
   };
 
   const installAutoCapture = (opts: AutoCaptureOptions = {}): { stop: () => void } => {
     const captureConsole = opts.captureConsole ?? true;
     const captureErrors = opts.captureErrors ?? true;
-    const targetWindow = typeof window === "undefined" ? undefined : window;
+    const targetWindow = "window" in globalThis ? globalThis.window : undefined;
 
     if (!captureConsole && !captureErrors) {
       return { stop: () => {} };
@@ -284,7 +296,7 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
 
     let suppressConsoleCapture = false;
     const safeEmit = (payload: Partial<GuckEvent>) => {
-      void emit(payload).catch((error) => {
+      void emit(payload).catch((error: unknown) => {
         if (onError) {
           suppressConsoleCapture = true;
           try {
@@ -310,7 +322,7 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
             type: "console",
             level: mapConsoleLevel(method),
             message: formatArgs(args),
-            data: { args: args.map((arg) => toSerializable(arg, new WeakSet<object>())) },
+            data: { args: args.map((arg) => toSerializable(arg, new WeakSet())) },
           });
         };
       }
@@ -318,7 +330,19 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
 
     if (captureErrors && targetWindow) {
       const errorListener = (event: ErrorEvent) => {
-        const message = event.message || event.error?.message || "";
+        const err: unknown = event.error;
+        let errorMessage: string | undefined;
+        if (err instanceof Error) {
+          errorMessage = err.message;
+        } else if (typeof err === "string") {
+          errorMessage = err;
+        } else if (err && typeof err === "object") {
+          const maybeMessage = (err as { message?: unknown }).message;
+          if (typeof maybeMessage === "string") {
+            errorMessage = maybeMessage;
+          }
+        }
+        const message = event.message || errorMessage || "";
         const source: GuckSource = {
           kind: "sdk",
           file: event.filename || undefined,
@@ -338,10 +362,12 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
         });
       };
       targetWindow.addEventListener("error", errorListener);
-      listeners.push(() => targetWindow.removeEventListener("error", errorListener));
+      listeners.push(() => {
+        targetWindow.removeEventListener("error", errorListener);
+      });
 
       const rejectionListener = (event: PromiseRejectionEvent) => {
-        const reason = event.reason;
+        const reason: unknown = event.reason;
         const message =
           typeof reason === "string"
             ? reason
@@ -353,12 +379,14 @@ export const createBrowserClient = (options: BrowserClientOptions): BrowserClien
           level: "error",
           message,
           data: {
-            reason: toSerializable(reason, new WeakSet<object>()),
+            reason: toSerializable(reason, new WeakSet()),
           },
         });
       };
       targetWindow.addEventListener("unhandledrejection", rejectionListener);
-      listeners.push(() => targetWindow.removeEventListener("unhandledrejection", rejectionListener));
+      listeners.push(() => {
+        targetWindow.removeEventListener("unhandledrejection", rejectionListener);
+      });
     }
 
     const stop = () => {

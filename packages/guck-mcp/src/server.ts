@@ -24,6 +24,9 @@ import {
 } from "@guckdev/core";
 import { computeMessageStats, guardPayload, trimEventsMessages } from "./output.js";
 
+const CONFIG_PATH_DESCRIPTION =
+  "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.";
+
 const SEARCH_SCHEMA = {
   type: "object",
   description:
@@ -117,8 +120,7 @@ const SEARCH_SCHEMA = {
     },
     config_path: {
       type: "string",
-      description:
-        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+      description: CONFIG_PATH_DESCRIPTION,
     },
     force: {
       type: "boolean",
@@ -240,8 +242,7 @@ const BATCH_SCHEMA = {
     },
     config_path: {
       type: "string",
-      description:
-        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+      description: CONFIG_PATH_DESCRIPTION,
     },
   },
   required: ["searches"],
@@ -266,8 +267,7 @@ const STATS_SCHEMA = {
     backends: { type: "array", items: { type: "string" } },
     config_path: {
       type: "string",
-      description:
-        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+      description: CONFIG_PATH_DESCRIPTION,
     },
   },
   required: ["group_by"],
@@ -283,8 +283,7 @@ const SESSIONS_SCHEMA = {
     backends: { type: "array", items: { type: "string" } },
     config_path: {
       type: "string",
-      description:
-        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+      description: CONFIG_PATH_DESCRIPTION,
     },
   },
 } as const;
@@ -320,8 +319,7 @@ const TAIL_SCHEMA = {
     backends: { type: "array", items: { type: "string" } },
     config_path: {
       type: "string",
-      description:
-        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+      description: CONFIG_PATH_DESCRIPTION,
     },
     force: {
       type: "boolean",
@@ -408,14 +406,14 @@ const resolveSince = (
       if (checkpointMs !== undefined) {
         return new Date(checkpointMs).toISOString();
       }
-      return `${config.mcp.default_lookback_ms}ms`;
+      return `${String(config.mcp.default_lookback_ms)}ms`;
     }
     return input;
   }
   if (checkpointMs !== undefined) {
     return new Date(checkpointMs).toISOString();
   }
-  return `${config.mcp.default_lookback_ms}ms`;
+  return `${String(config.mcp.default_lookback_ms)}ms`;
 };
 
 type McpServerOptions = {
@@ -426,6 +424,7 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
   if (options.configPath && !process.env.GUCK_CONFIG && !process.env.GUCK_CONFIG_PATH) {
     process.env.GUCK_CONFIG_PATH = options.configPath;
   }
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   const server = new Server(
     {
       name: "guck",
@@ -438,7 +437,7 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
     },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
+  server.setRequestHandler(ListToolsRequestSchema, () => {
     return {
       tools: [
         {
@@ -498,6 +497,7 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
     if (request.params.name === "guck.search") {
       const input = (request.params.arguments ?? {}) as GuckSearchParams;
       const { config_path: _configPath, ...filters } = input;
+      void _configPath;
       const withDefaults: GuckSearchParams = {
         ...filters,
         since: resolveSince(filters.since, config, storeDir),
@@ -598,7 +598,9 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
       const searches = input.searches ?? [];
       const results = await Promise.all(
         searches.map(async (search) => {
-          const { id, config_path: _ignored, force: _ignoredForce, ...filters } = search;
+          const { id, config_path: _configPath, force: _force, ...filters } = search;
+          void _configPath;
+          void _force;
           const withDefaults: GuckSearchParams = {
             ...filters,
             since: resolveSince(filters.since, config, storeDir),
@@ -699,6 +701,7 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
     if (request.params.name === "guck.stats") {
       const input = (request.params.arguments ?? {}) as GuckStatsParams;
       const { config_path: _configPath, ...filters } = input;
+      void _configPath;
       const withDefaults: GuckStatsParams = {
         ...filters,
         since: resolveSince(filters.since, config, storeDir),
@@ -710,6 +713,7 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
     if (request.params.name === "guck.sessions") {
       const input = (request.params.arguments ?? {}) as GuckSessionsParams;
       const { config_path: _configPath, ...filters } = input;
+      void _configPath;
       const withDefaults: GuckSessionsParams = {
         ...filters,
         since: resolveSince(filters.since, config, storeDir),
@@ -721,6 +725,7 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
     if (request.params.name === "guck.tail") {
       const input = (request.params.arguments ?? {}) as GuckTailParams;
       const { config_path: _configPath, ...filters } = input;
+      void _configPath;
       const limit = input.limit ?? Math.min(config.mcp.max_results, 50);
       const since = resolveSince(undefined, config, storeDir);
       let result;
