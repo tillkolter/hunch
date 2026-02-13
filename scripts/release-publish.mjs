@@ -11,6 +11,7 @@ const jsPackages = [
   { name: "@guckdev/cli", dir: path.join(root, "packages", "guck-cli") },
   { name: "@guckdev/vite", dir: path.join(root, "packages", "guck-vite") },
 ];
+const NPM_PUBLISH_ARGS = ["publish", "--access", "public", "--provenance"];
 
 const formatCommand = (cmd, args) => [cmd, ...args].join(" ");
 
@@ -41,7 +42,7 @@ const runBatch = async (commands) => {
   );
   let aborted = false;
   const guarded = spawned.map((spawnedCommand) =>
-    spawnedCommand.promise.catch((err) => {
+    spawnedCommand.promise.catch((error) => {
       if (!aborted) {
         aborted = true;
         for (const other of spawned) {
@@ -50,15 +51,15 @@ const runBatch = async (commands) => {
           }
         }
       }
-      throw err;
+      throw error;
     }),
   );
 
   try {
     await Promise.all(guarded);
-  } catch (err) {
+  } catch (error) {
     await Promise.allSettled(guarded);
-    throw err;
+    throw error;
   }
 };
 
@@ -68,7 +69,7 @@ const main = async () => {
   await runBatch([
     {
       cmd: "npm",
-      args: ["publish", "--access", "public", "--provenance"],
+      args: NPM_PUBLISH_ARGS,
       cwd: jsPackages[0].dir,
     },
   ]);
@@ -76,12 +77,12 @@ const main = async () => {
   await runBatch([
     {
       cmd: "npm",
-      args: ["publish", "--access", "public", "--provenance"],
+      args: NPM_PUBLISH_ARGS,
       cwd: jsPackages[1].dir,
     },
     {
       cmd: "npm",
-      args: ["publish", "--access", "public", "--provenance"],
+      args: NPM_PUBLISH_ARGS,
       cwd: jsPackages[2].dir,
     },
   ]);
@@ -89,7 +90,7 @@ const main = async () => {
   await runBatch([
     {
       cmd: "npm",
-      args: ["publish", "--access", "public", "--provenance"],
+      args: NPM_PUBLISH_ARGS,
       cwd: jsPackages[3].dir,
     },
   ]);
@@ -97,7 +98,7 @@ const main = async () => {
   await runCommand("python", ["-m", "build"], pyDir);
 };
 
-main().catch((err) => {
-  console.error(err?.stack ?? err);
+main().catch((error) => {
+  console.error(error?.stack ?? error);
   process.exitCode = 1;
 });

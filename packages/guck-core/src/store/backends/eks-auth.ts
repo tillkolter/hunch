@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 
-const requireModule = createRequire(import.meta.url);
+const requireModule: (id: string) => unknown = createRequire(import.meta.url);
 
 const DEFAULT_EKS_TOKEN_TTL_SECONDS = 14 * 60;
 
@@ -31,7 +31,14 @@ const loadEksSdk = (): {
   DescribeClusterCommand: new (input: { name: string }) => unknown;
 } => {
   try {
-    return requireModule("@aws-sdk/client-eks");
+    return requireModule("@aws-sdk/client-eks") as {
+      EKSClient: new (config: { region: string; credentials?: unknown }) => {
+        send: (
+          command: unknown,
+        ) => Promise<{ cluster?: { endpoint?: string; certificateAuthority?: { data?: string } } }>;
+      };
+      DescribeClusterCommand: new (input: { name: string }) => unknown;
+    };
   } catch {
     throw new Error(
       "EKS auth requires @aws-sdk/client-eks. Install it to enable EKS token auth.",
@@ -45,7 +52,11 @@ const loadStsSdk = (): {
   };
 } => {
   try {
-    return requireModule("@aws-sdk/client-sts");
+    return requireModule("@aws-sdk/client-sts") as {
+      STSClient: new (config: { region: string; credentials?: unknown }) => {
+        config: { credentials: unknown };
+      };
+    };
   } catch {
     throw new Error(
       "EKS auth requires @aws-sdk/client-sts. Install it to enable EKS token auth.",
@@ -53,9 +64,23 @@ const loadStsSdk = (): {
   }
 };
 
-const loadSignatureV4 = (): { SignatureV4: new (input: { credentials: unknown; region: string; service: string; sha256: unknown }) => { presign: (req: unknown, opts: { expiresIn: number; signingDate?: Date }) => Promise<unknown> } } => {
+const loadSignatureV4 = (): {
+  SignatureV4: new (input: {
+    credentials: unknown;
+    region: string;
+    service: string;
+    sha256: unknown;
+  }) => { presign: (req: unknown, opts: { expiresIn: number; signingDate?: Date }) => Promise<unknown> };
+} => {
   try {
-    return requireModule("@smithy/signature-v4");
+    return requireModule("@smithy/signature-v4") as {
+      SignatureV4: new (input: {
+        credentials: unknown;
+        region: string;
+        service: string;
+        sha256: unknown;
+      }) => { presign: (req: unknown, opts: { expiresIn: number; signingDate?: Date }) => Promise<unknown> };
+    };
   } catch {
     throw new Error(
       "EKS auth requires @smithy/signature-v4. Install it to enable EKS token auth.",
@@ -63,9 +88,27 @@ const loadSignatureV4 = (): { SignatureV4: new (input: { credentials: unknown; r
   }
 };
 
-const loadProtocolHttp = (): { HttpRequest: new (input: { protocol: string; method: string; hostname: string; path: string; query: Record<string, string>; headers: Record<string, string> }) => unknown } => {
+const loadProtocolHttp = (): {
+  HttpRequest: new (input: {
+    protocol: string;
+    method: string;
+    hostname: string;
+    path: string;
+    query: Record<string, string>;
+    headers: Record<string, string>;
+  }) => unknown;
+} => {
   try {
-    return requireModule("@smithy/protocol-http");
+    return requireModule("@smithy/protocol-http") as {
+      HttpRequest: new (input: {
+        protocol: string;
+        method: string;
+        hostname: string;
+        path: string;
+        query: Record<string, string>;
+        headers: Record<string, string>;
+      }) => unknown;
+    };
   } catch {
     throw new Error(
       "EKS auth requires @smithy/protocol-http. Install it to enable EKS token auth.",
@@ -85,7 +128,7 @@ type HashCtor = new (
 
 const loadHash = (): { Hash: HashCtor } => {
   try {
-    return requireModule("@smithy/hash-node");
+    return requireModule("@smithy/hash-node") as { Hash: HashCtor };
   } catch {
     throw new Error(
       "EKS auth requires @smithy/hash-node. Install it to enable EKS token auth.",
@@ -102,7 +145,14 @@ const loadCredentialProviders = (): {
   }) => unknown;
 } => {
   try {
-    return requireModule("@aws-sdk/credential-providers");
+    return requireModule("@aws-sdk/credential-providers") as {
+      fromIni: (input: { profile: string }) => unknown;
+      fromTemporaryCredentials: (input: {
+        params: { RoleArn: string; RoleSessionName: string };
+        clientConfig?: { region: string };
+        masterCredentials?: unknown;
+      }) => unknown;
+    };
   } catch {
     throw new Error(
       "EKS auth requires @aws-sdk/credential-providers when using profile override.",
@@ -138,7 +188,7 @@ const resolveCredentials = (
   } = {
     params: {
       RoleArn: roleArn,
-      RoleSessionName: `guck-eks-${Date.now()}`,
+      RoleSessionName: `guck-eks-${String(Date.now())}`,
     },
     clientConfig: region ? { region } : undefined,
   };
@@ -151,9 +201,9 @@ const resolveCredentials = (
 const toBase64Url = (value: string): string => {
   return Buffer.from(value, "utf8")
     .toString("base64")
-    .replace(/=+$/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+    .replaceAll(/=+$/g, "")
+    .replaceAll("+", "-")
+    .replaceAll("/", "_");
 };
 
 const formatUrl = (request: {
@@ -180,7 +230,8 @@ const formatUrl = (request: {
     }
   }
   const queryString = params.toString();
-  return `${protocol}//${hostname}${path}${queryString ? `?${queryString}` : ""}`;
+  const suffix = queryString ? `?${queryString}` : "";
+  return `${protocol}//${hostname}${path}${suffix}`;
 };
 
 export const fetchEksClusterInfo = async (

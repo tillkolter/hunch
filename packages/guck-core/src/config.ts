@@ -88,8 +88,10 @@ const mergeSdkConfig = (
 };
 
 const mergeConfig = (base: GuckConfig, override: Partial<GuckConfig>): GuckConfig => {
-  const { store_dir: _ignored, ...overrideRest } =
-    override as Partial<GuckConfig> & { store_dir?: string };
+  const overrideRest = {
+    ...(override as Partial<GuckConfig> & { store_dir?: string }),
+  };
+  delete overrideRest.store_dir;
   const mergedMcp = {
     ...base.mcp,
     ...(overrideRest.mcp ?? {}),
@@ -182,7 +184,7 @@ export const loadConfig = (options: LoadConfigOptions = {}): LoadedConfig => {
   };
 };
 
-export const resolveStoreDir = (_config: GuckConfig, _rootDir: string): string => {
+export const resolveStoreDir = (): string => {
   return process.env.GUCK_DIR ?? DEFAULT_STORE_DIR;
 };
 

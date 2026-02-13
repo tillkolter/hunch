@@ -44,7 +44,7 @@ const getValueAtPath = (value: unknown, path: string[]): unknown => {
     if (!Object.prototype.hasOwnProperty.call(current, segment)) {
       return undefined;
     }
-    current = (current as Record<string, unknown>)[segment];
+    current = current[segment];
   }
   return current;
 };

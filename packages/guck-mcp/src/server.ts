@@ -24,6 +24,9 @@ import {
 } from "@guckdev/core";
 import { computeMessageStats, guardPayload, trimEventsMessages } from "./output.js";
 
+const CONFIG_PATH_DESCRIPTION =
+  "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.";
+
 const SEARCH_SCHEMA = {
   type: "object",
   description:
@@ -117,8 +120,7 @@ const SEARCH_SCHEMA = {
     },
     config_path: {
       type: "string",
-      description:
-        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+      description: CONFIG_PATH_DESCRIPTION,
     },
     force: {
       type: "boolean",
@@ -240,8 +242,7 @@ const BATCH_SCHEMA = {
     },
     config_path: {
       type: "string",
-      description:
-        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+      description: CONFIG_PATH_DESCRIPTION,
     },
   },
   required: ["searches"],
@@ -266,8 +267,7 @@ const STATS_SCHEMA = {
     backends: { type: "array", items: { type: "string" } },
     config_path: {
       type: "string",
-      description:
-        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+      description: CONFIG_PATH_DESCRIPTION,
     },
   },
   required: ["group_by"],
@@ -283,8 +283,7 @@ const SESSIONS_SCHEMA = {
     backends: { type: "array", items: { type: "string" } },
     config_path: {
       type: "string",
-      description:
-        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+      description: CONFIG_PATH_DESCRIPTION,
     },
   },
 } as const;
@@ -320,8 +319,7 @@ const TAIL_SCHEMA = {
     backends: { type: "array", items: { type: "string" } },
     config_path: {
       type: "string",
-      description:
-        "Path to .guck.json or a directory containing it. Relative paths resolve against the MCP server pwd; prefer absolute paths to avoid mismatch.",
+      description: CONFIG_PATH_DESCRIPTION,
     },
     force: {
       type: "boolean",
@@ -439,7 +437,7 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
     },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
+  server.setRequestHandler(ListToolsRequestSchema, () => {
     return {
       tools: [
         {
@@ -600,7 +598,9 @@ export const startMcpServer = async (options: McpServerOptions = {}): Promise<vo
       const searches = input.searches ?? [];
       const results = await Promise.all(
         searches.map(async (search) => {
-          const { id, config_path: _ignored, force: _ignoredForce, ...filters } = search;
+          const { id, config_path: _configPath, force: _force, ...filters } = search;
+          void _configPath;
+          void _force;
           const withDefaults: GuckSearchParams = {
             ...filters,
             since: resolveSince(filters.since, config, storeDir),

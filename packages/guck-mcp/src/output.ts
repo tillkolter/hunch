@@ -74,7 +74,7 @@ const buildWarningPayload = ({
   const warning: Record<string, unknown> = {
     code: "guck.output_too_large",
     blocked: true,
-    message: `Output exceeds mcp.max_output_chars (${maxChars}). Refine your query or pass force=true to bypass the guard.`,
+    message: `Output exceeds mcp.max_output_chars (${String(maxChars)}). Refine your query or pass force=true to bypass the guard.`,
     max_output_chars: maxChars,
     estimated_output_chars: estimatedChars,
     format: format ?? "json",

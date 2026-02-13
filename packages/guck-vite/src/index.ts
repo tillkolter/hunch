@@ -36,7 +36,7 @@ const readBody = async (
   req: IncomingMessage,
   maxBodyBytes: number,
 ): Promise<{ ok: true; data: string } | { ok: false; error: "too_large" | "aborted" }> => {
-  return await new Promise((resolve) => {
+  return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     let size = 0;
     let tooLarge = false;
@@ -50,21 +50,26 @@ const readBody = async (
       resolve(result);
     };
 
-    req.on("data", (chunk) => {
+    req.on("data", (chunk: Buffer | string) => {
       if (settled) {
         return;
       }
-      size += chunk.length;
+      const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+      size += buffer.length;
       if (size > maxBodyBytes) {
         tooLarge = true;
       }
       if (!tooLarge) {
-        chunks.push(Buffer.from(chunk));
+        chunks.push(buffer);
       }
     });
 
-    req.on("aborted", () => finish({ ok: false, error: "aborted" }));
-    req.on("error", () => finish({ ok: false, error: "aborted" }));
+    req.on("aborted", () => {
+      finish({ ok: false, error: "aborted" });
+    });
+    req.on("error", () => {
+      finish({ ok: false, error: "aborted" });
+    });
     req.on("end", () => {
       if (settled) {
         return;
@@ -107,70 +112,74 @@ export const guckVitePlugin = (options: GuckVitePluginOptions = {}): Plugin => {
       if (!enabled) {
         return;
       }
-      server.middlewares.use(async (req, res, next) => {
-        const url = new URL(req.url ?? "", "http://localhost");
-        if (url.pathname !== routePath) {
-          next();
-          return;
-        }
-
-        if (req.method === "OPTIONS") {
-          applyCors(res);
-          res.statusCode = 204;
-          res.end();
-          return;
-        }
-
-        if (req.method !== "POST") {
-          applyCors(res);
-          res.statusCode = 404;
-          res.end();
-          return;
-        }
-
-        const { config, rootDir } = loadConfig({ configPath });
-        if (!config.enabled) {
-          writeJson(res, 403, { ok: false, error: "Guck disabled" });
-          return;
-        }
-
-        const body = await readBody(req, DEFAULT_MAX_BODY_BYTES);
-        if (!body.ok) {
-          if (body.error === "too_large") {
-            writeJson(res, 413, { ok: false, error: "Payload too large" });
+      server.middlewares.use((req, res, next) => {
+        void (async () => {
+          const url = new URL(req.url ?? "", "http://localhost");
+          if (url.pathname !== routePath) {
+            next();
             return;
           }
-          writeJson(res, 400, { ok: false, error: "Request aborted" });
-          return;
-        }
 
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(body.data);
-        } catch {
-          writeJson(res, 400, { ok: false, error: "Invalid JSON" });
-          return;
-        }
-
-        const items = coerceItems(parsed);
-        if (!items) {
-          writeJson(res, 400, { ok: false, error: "Invalid event payload" });
-          return;
-        }
-
-        const storeDir = resolveStoreDir(config, rootDir);
-        try {
-          for (const item of items) {
-            const event = buildEvent(item, { service: config.default_service });
-            const redacted = redactEvent(config, event);
-            await appendEvent(storeDir, redacted);
+          if (req.method === "OPTIONS") {
+            applyCors(res);
+            res.statusCode = 204;
+            res.end();
+            return;
           }
-        } catch {
-          writeJson(res, 500, { ok: false, error: "Failed to write event" });
-          return;
-        }
 
-        writeJson(res, 200, { ok: true, count: items.length });
+          if (req.method !== "POST") {
+            applyCors(res);
+            res.statusCode = 404;
+            res.end();
+            return;
+          }
+
+          const { config, rootDir } = loadConfig({ configPath });
+          if (!config.enabled) {
+            writeJson(res, 403, { ok: false, error: "Guck disabled" });
+            return;
+          }
+
+          const body = await readBody(req, DEFAULT_MAX_BODY_BYTES);
+          if (!body.ok) {
+            if (body.error === "too_large") {
+              writeJson(res, 413, { ok: false, error: "Payload too large" });
+              return;
+            }
+            writeJson(res, 400, { ok: false, error: "Request aborted" });
+            return;
+          }
+
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(body.data);
+          } catch {
+            writeJson(res, 400, { ok: false, error: "Invalid JSON" });
+            return;
+          }
+
+          const items = coerceItems(parsed);
+          if (!items) {
+            writeJson(res, 400, { ok: false, error: "Invalid event payload" });
+            return;
+          }
+
+          const storeDir = resolveStoreDir(config, rootDir);
+          try {
+            for (const item of items) {
+              const event = buildEvent(item, { service: config.default_service });
+              const redacted = redactEvent(config, event);
+              await appendEvent(storeDir, redacted);
+            }
+          } catch {
+            writeJson(res, 500, { ok: false, error: "Failed to write event" });
+            return;
+          }
+
+          writeJson(res, 200, { ok: true, count: items.length });
+        })().catch((error: unknown) => {
+          next(error as Error);
+        });
       });
     },
   };
