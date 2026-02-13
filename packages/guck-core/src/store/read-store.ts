@@ -85,10 +85,8 @@ const resolveLocalDir = (rootDir: string, storeDir: string, dir?: string): strin
   const resolved = path.isAbsolute(expanded)
     ? expanded
     : path.join(rootDir, expanded);
-  if (isLegacyLocalDir(dir)) {
-    if (!hasJsonlFiles(resolved) && hasJsonlFiles(storeDir)) {
-      return storeDir;
-    }
+  if (isLegacyLocalDir(dir) && !hasJsonlFiles(resolved) && hasJsonlFiles(storeDir)) {
+    return storeDir;
   }
   return resolved;
 };
