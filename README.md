@@ -197,6 +197,38 @@ export GUCK_SESSION_ID=session-001
 
 Remote backends (CloudWatch/K8s) require optional SDK installs; install only if you use them.
 
+### Read backends (local + remote)
+
+By default, Guck reads from the local store (`"read": { "backend": "local" }`).
+To read from multiple sources, set `"read": { "backend": "multi" }` and list
+every backend you want to query under `read.backends`.
+
+Important: once you set `read.backends`, **only** the listed backends are used.
+Local is not implied. If you want local + remote, you must include a `"type": "local"`
+entry alongside your remote backend(s).
+
+Example (local + k8s):
+
+```json
+{
+  "read": {
+    "backend": "multi",
+    "backends": [
+      { "type": "local" },
+      {
+        "type": "k8s",
+        "id": "prod",
+        "namespace": "my-namespace",
+        "selector": "app=my-service"
+      }
+    ]
+  }
+}
+```
+
+If you list only the k8s backend above, Guck will read **only** from k8s and will
+not look at local logs.
+
 ### JS SDK auto-capture (stdout/stderr)
 
 The JS SDK can patch `process.stdout` and `process.stderr` to emit Guck events.
@@ -372,6 +404,35 @@ Examples:
 { "format": "json", "fields": ["ts", "data.rawPeak"], "flatten": true }
 ```
 
+Compact syntax (short keys; canonical fields override compact values):
+
+- `s` → `service`
+- `sid` → `session_id`
+- `rid` → `run_id`
+- `ty` → `types`
+- `lv` → `levels`
+- `cn` → `contains`
+- `q` → `query`
+- `since` → `since`
+- `until` → `until`
+- `lim` → `limit`
+- `fmt` → `format`
+- `flds` → `fields`
+- `tpl` → `template`
+- `b` → `backends`
+- `cfg` → `config_path`
+
+When `compact` is present, defaults apply:
+
+- `format` → `text` (if missing)
+- `template` → `{ts}|{service}|{message}` (if `format` resolves to `text` and `template` is missing)
+
+Compact example:
+
+```json
+{ "compact": { "s": "api", "q": "timeout", "since": "15m" } }
+```
+
 Batch search:
 
 ```json
@@ -383,10 +444,28 @@ Batch search:
 }
 ```
 
+Batch search with compact + common defaults:
+
+```json
+{
+  "common": { "compact": { "since": "15m", "fmt": "text" } },
+  "searches": [
+    { "id": "errors", "compact": { "q": "error" } },
+    { "id": "warnings", "compact": { "lv": ["warn"] } }
+  ]
+}
+```
+
 Recommended minimal output for agents:
 
 ```json
 { "format": "text", "template": "{ts}|{service}|{message}" }
+```
+
+Compact minimal output:
+
+```json
+{ "compact": { "q": "error" } }
 ```
 
 ## AI usage guidance
